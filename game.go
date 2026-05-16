@@ -160,6 +160,7 @@ type Game struct {
 	lastEvent  string       // short description of the most recent notable event
 	stopTick   chan struct{}
 	quest      *Quest
+	DevMode    bool         // speeds up TTL by 5× for development
 }
 
 func newGame(dataFile, guildsFile string, say func(string)) *Game {
@@ -321,7 +322,7 @@ func (g *Game) CmdRegister(src, nick, class, pass string) string {
 		PassSalt: salt,
 		PassHash: hashPass(salt, pass),
 		Level:    0,
-		TTL:      ttlForLevel(0),
+		TTL:      g.ttlForLevel(0),
 	}
 	g.mu.Lock()
 	g.players[key] = p
@@ -717,7 +718,7 @@ func (g *Game) onlinePlayers() []*Player {
 func (g *Game) doLevelUp(p *Player) {
 	g.mu.Lock()
 	p.Level++
-	p.TTL = ttlForLevel(p.Level)
+	p.TTL = g.ttlForLevel(p.Level)
 
 	slot, itemLevel, itemName, itemRarity := rollItemDrop(p)
 	improved := itemLevel > p.Items[slot]
@@ -1323,12 +1324,18 @@ func (g *Game) load() {
 
 // ttlForLevel returns seconds to next level. After level 60 it adds one day per level
 // to prevent the curve from becoming impossibly steep.
-func ttlForLevel(level int) int64 {
+func (g *Game) ttlForLevel(level int) int64 {
+	var t int64
 	if level <= 60 {
-		return int64(600 * math.Pow(1.16, float64(level)))
+		t = int64(600 * math.Pow(1.16, float64(level)))
+	} else {
+		base := int64(600 * math.Pow(1.16, 60))
+		t = base + int64(86400*(level-60))
 	}
-	base := int64(600 * math.Pow(1.16, 60))
-	return base + int64(86400*(level-60))
+	if g.DevMode {
+		t /= 5
+	}
+	return t
 }
 
 func newSalt() string {

@@ -25,7 +25,7 @@ All flags:
 | `-channel` | `#idlerpg` | Game channel |
 | `-data` | `idlerpg.json` | Player data file |
 | `-guilds` | `guilds.json` | Guild data file |
-| `-autologin` | `false` | Auto-login channel members present on startup via WHO (useful during dev) |
+| `-dev` | `false` | Dev mode: auto-login channel members on startup (via WHO) and speed up TTL by 5× |
 
 No test suite yet. Build with `go build ./...` to verify changes compile.
 

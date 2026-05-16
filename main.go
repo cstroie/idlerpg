@@ -10,6 +10,7 @@ import (
 	irc "github.com/fluffle/goirc/client"
 )
 
+
 func main() {
 	server   := flag.String("server", "irc.libera.chat:6667", "IRC server host:port")
 	nick     := flag.String("nick", "GoIdle", "Bot nick")
@@ -18,7 +19,7 @@ func main() {
 	channel  := flag.String("channel", "#idlerpg", "Game channel")
 	dataFile   := flag.String("data", "idlerpg.json", "Player data file")
 	guildsFile := flag.String("guilds", "guilds.json", "Guild data file")
-	autologin  := flag.Bool("autologin", false, "Auto-login registered players already in channel on startup (useful during dev)")
+	dev        := flag.Bool("dev", false, "Dev mode: auto-login channel members on startup and speed up TTL by 5×")
 	flag.Parse()
 
 	cfg := irc.NewConfig(*nick, "idlerpg", "IdleRPG bot")
@@ -29,13 +30,16 @@ func main() {
 
 	conn := irc.Client(cfg)
 
-	// say sends a message to the game channel.
+	// say sends a message to the game channel and logs it.
 	say := func(msg string) {
+		log.Printf(">> %s", msg)
 		conn.Privmsg(*channel, msg)
 	}
 
 	game := newGame(*dataFile, *guildsFile, say)
+	game.DevMode = *dev
 	game.setTopic = func(topic string) {
+		log.Printf("TOPIC: %s", topic)
 		conn.Topic(*channel, topic)
 	}
 
@@ -43,7 +47,7 @@ func main() {
 		log.Println("Connected, joining", *channel)
 		c.Join(*channel)
 		game.start()
-		if *autologin {
+		if *dev {
 			c.Who(*channel)
 		}
 	})
@@ -52,7 +56,7 @@ func main() {
 	var whoQueue []string
 	conn.HandleFunc("352", func(c *irc.Conn, line *irc.Line) {
 		// Args: [botnick, #channel, user, host, server, nick, flags, ...]
-		if !*autologin || len(line.Args) < 6 {
+		if !*dev || len(line.Args) < 6 {
 			return
 		}
 		memberNick := line.Args[5]
@@ -65,7 +69,7 @@ func main() {
 
 	// End of WHO: fire OnJoin for every queued member.
 	conn.HandleFunc("315", func(c *irc.Conn, line *irc.Line) {
-		if !*autologin {
+		if !*dev {
 			return
 		}
 		queue := whoQueue
@@ -279,5 +283,5 @@ func main() {
 }
 
 func init() {
-	fmt.Println("IdleRPG bot starting")
+	log.Println("IdleRPG bot starting")
 }
