@@ -60,6 +60,19 @@ func main() {
 		game.OnNick(line.Src, line.Args[0])
 	})
 
+	conn.HandleFunc("KICK", func(c *irc.Conn, line *irc.Line) {
+		if len(line.Args) < 2 {
+			return
+		}
+		kicked := line.Args[1]
+		if kicked == *nick {
+			// Bot was kicked — rejoin.
+			c.Join(*channel)
+			return
+		}
+		game.OnKick(kicked)
+	})
+
 	conn.HandleFunc("PRIVMSG", func(c *irc.Conn, line *irc.Line) {
 		if len(line.Args) < 2 {
 			return

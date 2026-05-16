@@ -1,11 +1,13 @@
 package main
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
-	"math/rand"
+	mathrand "math/rand"
 	"os"
 	"sort"
 	"strings"
@@ -18,12 +20,82 @@ var itemSlots = [10]string{
 	"tunic", "gloves", "leggings", "shield", "boots",
 }
 
+var calamityMsgs = []string{
+	"%s is forsaken by their deity! TTL increased by %d%%.",
+	"A wandering curse latches onto %s. TTL increased by %d%%.",
+	"%s trips over a root and loses precious time. TTL increased by %d%%.",
+	"Fate frowns upon %s. TTL increased by %d%%.",
+	"A black cat crosses %s's path. TTL increased by %d%%.",
+	"%s is visited by ill omens. TTL increased by %d%%.",
+}
+
+var godsendMsgs = []string{
+	"The gods smile upon %s! TTL reduced by %d%%.",
+	"A ray of divine light blesses %s! TTL reduced by %d%%.",
+	"%s finds a shortcut on the road to glory! TTL reduced by %d%%.",
+	"Fortune favours %s today! TTL reduced by %d%%.",
+	"A celestial wind carries %s forward! TTL reduced by %d%%.",
+	"%s receives a blessing from the heavens! TTL reduced by %d%%.",
+}
+
+var itemCalamityMsgs = []string{
+	"%s's %s was damaged in an ambush! Item level reduced by %d%%.",
+	"A thief nicks %s's %s in the marketplace! Item level reduced by %d%%.",
+	"%s drops their %s down a well. Item level reduced by %d%%.",
+	"Rust claims %s's %s. Item level reduced by %d%%.",
+}
+
+var itemGodsendMsgs = []string{
+	"%s polishes their %s to a shine! Item level increased by %d%%.",
+	"A wandering smith improves %s's %s! Item level increased by %d%%.",
+	"Divine favour enchants %s's %s! Item level increased by %d%%.",
+	"%s finds a rare component and upgrades their %s! Item level increased by %d%%.",
+}
+
+var handOfGodMsgs = [2][]string{
+	{ // hurt
+		"The hand of %s's god reaches down and sets them back %d%%!",
+		"%s has displeased their deity — struck back %d%%!",
+		"A divine rebuke sends %s stumbling backward %d%%!",
+	},
+	{ // help
+		"The hand of %s's god reaches down and pushes them forward %d%%!",
+		"%s basks in divine favour and surges ahead %d%%!",
+		"A celestial nudge propels %s forward %d%%!",
+	},
+}
+
+var questDescs = []string{
+	"slay the dragon terrorising the village of Mal'Gorn",
+	"recover the stolen Orb of Aldur from the goblin warrens",
+	"escort the merchant caravan through the Darkwood",
+	"retrieve the ancient tome from the sunken library",
+	"defeat the lich haunting the catacombs beneath Castle Greystone",
+	"find the missing children taken by the forest sprites",
+	"seal the dimensional rift opening near the city of Varek",
+	"break the curse on the village of Mirewood",
+	"purge the corrupted well poisoning the town of Ashfen",
+	"hunt down the bandit king who plagues the northern roads",
+	"recover the holy relic stolen from the Temple of Aeon",
+	"investigate the strange lights appearing over the Grimfen swamp",
+}
+
+const questMinLevel = 15
+const questMinPlayers = 4
+
+type Quest struct {
+	Questers []*Player
+	EndsAt   time.Time
+	Desc     string
+}
+
 type Player struct {
 	Nick     string
 	Class    string
+	PassSalt string
 	PassHash string
 	Level    int
-	TTL      int64  // seconds until next level
+	TTL      int64   // seconds until next level
 	Items    [10]int // item level per slot
 	Online   bool
 	Addr     string // nick!user@host when online
@@ -42,6 +114,8 @@ type Game struct {
 	mu       sync.Mutex
 	dataFile string
 	say      func(string) // sends a message to the game channel
+	stopTick chan struct{}
+	quest    *Quest
 }
 
 func newGame(dataFile string, say func(string)) *Game {
@@ -55,7 +129,11 @@ func newGame(dataFile string, say func(string)) *Game {
 }
 
 func (g *Game) start() {
-	go g.tick()
+	if g.stopTick != nil {
+		close(g.stopTick)
+	}
+	g.stopTick = make(chan struct{})
+	go g.tick(g.stopTick)
 }
 
 // OnJoin auto-logins a registered player when they join the channel.
@@ -130,6 +208,22 @@ func (g *Game) OnNick(src, newNick string) {
 	}
 }
 
+// OnKick applies a kick penalty and marks the player offline.
+func (g *Game) OnKick(kickedNick string) {
+	g.mu.Lock()
+	p := g.players[strings.ToLower(kickedNick)]
+	if p != nil && p.Online {
+		g.applyPenalty(p, 50)
+		p.Online = false
+	} else {
+		p = nil
+	}
+	g.mu.Unlock()
+	if p != nil {
+		g.save()
+	}
+}
+
 // OnPrivmsg applies a talk penalty for registered online players.
 func (g *Game) OnPrivmsg(src, text string) {
 	g.mu.Lock()
@@ -152,10 +246,12 @@ func (g *Game) CmdRegister(src, nick, class, pass string) string {
 	if exists {
 		return fmt.Sprintf("Nick %s is already registered.", nick)
 	}
+	salt := newSalt()
 	p := &Player{
 		Nick:     nick,
 		Class:    class,
-		PassHash: hashPass(pass),
+		PassSalt: salt,
+		PassHash: hashPass(salt, pass),
 		Level:    0,
 		TTL:      ttlForLevel(0),
 	}
@@ -176,7 +272,7 @@ func (g *Game) CmdLogin(src, pass string) string {
 	if !ok {
 		return "No character registered with that nick. Use !register <nick> <class> <pass> first."
 	}
-	if p.PassHash != hashPass(pass) {
+	if p.PassHash != hashPass(p.PassSalt, pass) {
 		return "Wrong password."
 	}
 	g.mu.Lock()
@@ -218,8 +314,19 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 	if p.Online {
 		status = "online"
 	}
-	return fmt.Sprintf("%s, the level %d %s [%s] — TTL: %s — Items: %d",
-		p.Nick, p.Level, p.Class, status, fmtDuration(p.TTL), p.itemSum())
+	questInfo := ""
+	g.mu.Lock()
+	if g.quest != nil {
+		for _, qp := range g.quest.Questers {
+			if qp == p {
+				questInfo = fmt.Sprintf(" [on quest, ends in %s]", fmtDuration(int64(time.Until(g.quest.EndsAt).Seconds())))
+				break
+			}
+		}
+	}
+	g.mu.Unlock()
+	return fmt.Sprintf("%s, the level %d %s [%s]%s — TTL: %s — Items: %d",
+		p.Nick, p.Level, p.Class, status, questInfo, fmtDuration(p.TTL), p.itemSum())
 }
 
 // CmdTop returns the top 5 players by level.
@@ -248,31 +355,63 @@ func (g *Game) CmdTop() string {
 	parts := make([]string, n)
 	for i := 0; i < n; i++ {
 		p := players[i]
-		parts[i] = fmt.Sprintf("%d. %s (lvl %d)", i+1, p.Nick, p.Level)
+		parts[i] = fmt.Sprintf("%d. %s (lvl %d, items %d)", i+1, p.Nick, p.Level, p.itemSum())
 	}
 	return "Top players: " + strings.Join(parts, " | ")
 }
 
-func (g *Game) tick() {
+func (g *Game) tick(stop <-chan struct{}) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+		}
+
 		g.mu.Lock()
 		var levelUps []*Player
-		for _, p := range g.players {
-			if !p.Online {
-				continue
-			}
+		var msgs []string
+
+		online := g.onlinePlayers()
+
+		for _, p := range online {
 			p.TTL--
 			if p.TTL <= 0 {
 				levelUps = append(levelUps, p)
-			} else if rand.Intn(86400) == 0 {
-				g.randomEvent(p)
+			} else if mathrand.Intn(86400) == 0 {
+				msgs = append(msgs, g.randomEvent(p))
 			}
 		}
+
+		// Hand of God: ~once per 20 days across the whole server.
+		if len(online) > 0 && mathrand.Intn(86400*20) == 0 {
+			msgs = append(msgs, g.handOfGod(online[mathrand.Intn(len(online))]))
+		}
+
+		// Team battle: ~4 times per day when at least 6 players are online.
+		if len(online) >= 6 && mathrand.Intn(86400/4) == 0 {
+			msgs = append(msgs, g.teamBattle(online)...)
+		}
+
+		// Quest: ~once per day when conditions are met and no quest is active.
+		if g.quest == nil && mathrand.Intn(86400) == 0 {
+			msgs = append(msgs, g.tryStartQuest(online)...)
+		}
+
+		// Quest resolution.
+		if g.quest != nil && time.Now().After(g.quest.EndsAt) {
+			msgs = append(msgs, g.resolveQuest(online)...)
+			g.quest = nil
+		}
+
 		g.mu.Unlock()
 
+		for _, msg := range msgs {
+			g.say(msg)
+		}
 		for _, p := range levelUps {
 			g.doLevelUp(p)
 		}
@@ -282,14 +421,25 @@ func (g *Game) tick() {
 	}
 }
 
+// onlinePlayers returns a slice of all online players. Must be called with mu held.
+func (g *Game) onlinePlayers() []*Player {
+	out := make([]*Player, 0, len(g.players))
+	for _, p := range g.players {
+		if p.Online {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 func (g *Game) doLevelUp(p *Player) {
 	g.mu.Lock()
 	p.Level++
 	p.TTL = ttlForLevel(p.Level)
 
-	slot := rand.Intn(10)
+	slot := mathrand.Intn(10)
 	maxItem := int(math.Max(float64(p.Level)*1.5, 1))
-	itemLevel := rand.Intn(maxItem) + 1
+	itemLevel := mathrand.Intn(maxItem) + 1
 	improved := itemLevel > p.Items[slot]
 	if improved {
 		p.Items[slot] = itemLevel
@@ -300,24 +450,24 @@ func (g *Game) doLevelUp(p *Player) {
 	ttl := p.TTL
 	isum := p.itemSum()
 
+	online := g.onlinePlayers()
 	var opponents []*Player
-	for _, op := range g.players {
-		if op.Online && strings.ToLower(op.Nick) != strings.ToLower(nick) {
+	for _, op := range online {
+		if strings.ToLower(op.Nick) != strings.ToLower(nick) {
 			opponents = append(opponents, op)
 		}
 	}
 	g.mu.Unlock()
 
-	msg := fmt.Sprintf("%s has attained level %d! Next level in %s. They find a %s of level %d",
-		nick, level, fmtDuration(ttl), slotName, itemLevel)
+	equipped := ""
 	if improved {
-		msg += " (equipped!)"
+		equipped = " (equipped!)"
 	}
-	msg += fmt.Sprintf(" [item total: %d]", isum)
-	g.say(msg)
+	g.say(fmt.Sprintf("%s has attained level %d! Next level in %s. They find a %s of level %d%s [item total: %d].",
+		nick, level, fmtDuration(ttl), slotName, itemLevel, equipped, isum))
 
 	if len(opponents) > 0 {
-		g.battle(p, opponents[rand.Intn(len(opponents))])
+		g.battle(p, opponents[mathrand.Intn(len(opponents))])
 	}
 }
 
@@ -333,8 +483,8 @@ func (g *Game) battle(a, b *Player) {
 		bSum = 1
 	}
 
-	aRoll := rand.Intn(aSum)
-	bRoll := rand.Intn(bSum)
+	aRoll := mathrand.Intn(aSum)
+	bRoll := mathrand.Intn(bSum)
 
 	winner, loser := a, b
 	wRoll, lRoll := aRoll, bRoll
@@ -355,27 +505,289 @@ func (g *Game) battle(a, b *Player) {
 	loser.TTL += change
 
 	wName, lName := winner.Nick, loser.Nick
+	wSum, lSum := winner.itemSum(), loser.itemSum()
+
+	stealMsg := g.tryStealItem(winner, loser)
 	g.mu.Unlock()
 
 	g.say(fmt.Sprintf("%s [%d/%d] battles %s [%d/%d] and wins! TTL adjusted by %d%%.",
-		wName, wRoll, aSum, lName, lRoll, bSum, pct))
+		wName, wRoll, wSum, lName, lRoll, lSum, pct))
+	if stealMsg != "" {
+		g.say(stealMsg)
+	}
 }
 
-func (g *Game) randomEvent(p *Player) {
-	pct := rand.Intn(8) + 5
+// tryStealItem gives the winner a 3% chance to steal one item from the loser.
+// Must be called with mu held.
+func (g *Game) tryStealItem(winner, loser *Player) string {
+	if mathrand.Intn(100) >= 3 {
+		return ""
+	}
+	// Pick a random slot where the loser has something worth taking.
+	candidates := make([]int, 0, 10)
+	for i, v := range loser.Items {
+		if v > 0 {
+			candidates = append(candidates, i)
+		}
+	}
+	if len(candidates) == 0 {
+		return ""
+	}
+	slot := candidates[mathrand.Intn(len(candidates))]
+	stolen := loser.Items[slot]
+	loser.Items[slot] = 0
+	if stolen > winner.Items[slot] {
+		winner.Items[slot] = stolen
+		return fmt.Sprintf("%s steals %s's %s (level %d) and equips it!",
+			winner.Nick, loser.Nick, itemSlots[slot], stolen)
+	}
+	return fmt.Sprintf("%s steals %s's %s (level %d) but it's worse than their own — discarded.",
+		winner.Nick, loser.Nick, itemSlots[slot], stolen)
+}
+
+// randomEvent fires a random individual event for one player. Must be called with mu held.
+func (g *Game) randomEvent(p *Player) string {
+	pct := mathrand.Intn(8) + 5
 	change := p.TTL * int64(pct) / 100
 	if change < 1 {
 		change = 1
 	}
-	if rand.Intn(2) == 0 {
+
+	// Pick event type: 0=ttl calamity, 1=ttl godsend, 2=item calamity, 3=item godsend, 4=find item
+	eventType := mathrand.Intn(5)
+
+	switch eventType {
+	case 0: // TTL calamity
 		p.TTL += change
-		go g.say(fmt.Sprintf("%s has been struck by misfortune! TTL increased by %d%%.", p.Nick, pct))
-	} else {
+		tmpl := calamityMsgs[mathrand.Intn(len(calamityMsgs))]
+		return fmt.Sprintf(tmpl, p.Nick, pct)
+
+	case 1: // TTL godsend
 		p.TTL -= change
 		if p.TTL < 1 {
 			p.TTL = 1
 		}
-		go g.say(fmt.Sprintf("The gods smile upon %s! TTL reduced by %d%%.", p.Nick, pct))
+		tmpl := godsendMsgs[mathrand.Intn(len(godsendMsgs))]
+		return fmt.Sprintf(tmpl, p.Nick, pct)
+
+	case 2: // Item calamity — degrade one non-zero item
+		slot := g.pickNonZeroSlot(p)
+		if slot < 0 {
+			// Fall back to TTL calamity if no items.
+			p.TTL += change
+			return fmt.Sprintf(calamityMsgs[0], p.Nick, pct)
+		}
+		old := p.Items[slot]
+		reduced := int(math.Max(float64(old)*float64(100-pct)/100, 1))
+		p.Items[slot] = reduced
+		tmpl := itemCalamityMsgs[mathrand.Intn(len(itemCalamityMsgs))]
+		return fmt.Sprintf(tmpl, p.Nick, itemSlots[slot], pct)
+
+	case 3: // Item godsend — improve one item
+		slot := g.pickNonZeroSlot(p)
+		if slot < 0 {
+			slot = mathrand.Intn(10)
+			p.Items[slot] = 1
+		}
+		old := p.Items[slot]
+		p.Items[slot] = int(math.Max(float64(old)*float64(100+pct)/100, float64(old)+1))
+		tmpl := itemGodsendMsgs[mathrand.Intn(len(itemGodsendMsgs))]
+		return fmt.Sprintf(tmpl, p.Nick, itemSlots[slot], pct)
+
+	default: // Find a random item on the ground
+		slot := mathrand.Intn(10)
+		maxItem := int(math.Max(float64(p.Level)*1.5, 1))
+		found := mathrand.Intn(maxItem) + 1
+		equipped := "but it's worse than their current one"
+		if found > p.Items[slot] {
+			p.Items[slot] = found
+			equipped = "and equips it"
+		}
+		return fmt.Sprintf("%s stumbles upon a %s of level %d on the road %s! [item total: %d]",
+			p.Nick, itemSlots[slot], found, equipped, p.itemSum())
+	}
+}
+
+// pickNonZeroSlot returns a random item slot index that has a value > 0, or -1 if none.
+// Must be called with mu held.
+func (g *Game) pickNonZeroSlot(p *Player) int {
+	candidates := make([]int, 0, 10)
+	for i, v := range p.Items {
+		if v > 0 {
+			candidates = append(candidates, i)
+		}
+	}
+	if len(candidates) == 0 {
+		return -1
+	}
+	return candidates[mathrand.Intn(len(candidates))]
+}
+
+// handOfGod fires a dramatic divine event on a random online player. Must be called with mu held.
+func (g *Game) handOfGod(p *Player) string {
+	pct := mathrand.Intn(71) + 5 // 5–75%
+	change := p.TTL * int64(pct) / 100
+	if change < 1 {
+		change = 1
+	}
+	if mathrand.Intn(5) == 0 { // 20% chance to hurt
+		p.TTL += change
+		tmpl := handOfGodMsgs[0][mathrand.Intn(len(handOfGodMsgs[0]))]
+		return fmt.Sprintf(tmpl, p.Nick, pct)
+	}
+	p.TTL -= change
+	if p.TTL < 1 {
+		p.TTL = 1
+	}
+	tmpl := handOfGodMsgs[1][mathrand.Intn(len(handOfGodMsgs[1]))]
+	return fmt.Sprintf(tmpl, p.Nick, pct)
+}
+
+// teamBattle selects two teams of 3 from online players and runs a group battle.
+// Must be called with mu held.
+func (g *Game) teamBattle(online []*Player) []string {
+	// Shuffle and pick 6.
+	shuffled := make([]*Player, len(online))
+	copy(shuffled, online)
+	mathrand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
+	teamA := shuffled[:3]
+	teamB := shuffled[3:6]
+
+	sumA, sumB := 0, 0
+	for _, p := range teamA {
+		sumA += p.itemSum()
+	}
+	for _, p := range teamB {
+		sumB += p.itemSum()
+	}
+	if sumA < 1 {
+		sumA = 1
+	}
+	if sumB < 1 {
+		sumB = 1
+	}
+
+	rollA := mathrand.Intn(sumA)
+	rollB := mathrand.Intn(sumB)
+
+	winners, losers := teamA, teamB
+	wRoll, lRoll, wSum, lSum := rollA, rollB, sumA, sumB
+	if rollB > rollA {
+		winners, losers = teamB, teamA
+		wRoll, lRoll, wSum, lSum = rollB, rollA, sumB, sumA
+	}
+
+	// Find the lowest TTL on each team for scaling the change.
+	minWinnerTTL := winners[0].TTL
+	for _, p := range winners[1:] {
+		if p.TTL < minWinnerTTL {
+			minWinnerTTL = p.TTL
+		}
+	}
+	change := minWinnerTTL * 20 / 100
+
+	for _, p := range winners {
+		p.TTL -= change
+		if p.TTL < 0 {
+			p.TTL = 0
+		}
+	}
+	for _, p := range losers {
+		p.TTL += change
+	}
+
+	names := func(team []*Player) string {
+		ns := make([]string, len(team))
+		for i, p := range team {
+			ns[i] = p.Nick
+		}
+		return strings.Join(ns, ", ")
+	}
+
+	return []string{
+		fmt.Sprintf("Team battle! [%s] (%d) vs [%s] (%d) — rolls %d vs %d.",
+			names(winners), wSum, names(losers), lSum, wRoll, lRoll),
+		fmt.Sprintf("[%s] win! Each winner's TTL drops by 20%% of their weakest member's TTL.", names(winners)),
+	}
+}
+
+// tryStartQuest attempts to launch a quest when conditions are met. Must be called with mu held.
+func (g *Game) tryStartQuest(online []*Player) []string {
+	eligible := make([]*Player, 0)
+	for _, p := range online {
+		if p.Level >= questMinLevel {
+			eligible = append(eligible, p)
+		}
+	}
+	if len(eligible) < questMinPlayers {
+		return nil
+	}
+
+	mathrand.Shuffle(len(eligible), func(i, j int) { eligible[i], eligible[j] = eligible[j], eligible[i] })
+	questers := eligible[:questMinPlayers]
+
+	desc := questDescs[mathrand.Intn(len(questDescs))]
+	duration := time.Duration(mathrand.Intn(3)+1) * time.Hour // 1–3 hours
+	g.quest = &Quest{
+		Questers: questers,
+		EndsAt:   time.Now().Add(duration),
+		Desc:     desc,
+	}
+
+	names := make([]string, questMinPlayers)
+	for i, p := range questers {
+		names[i] = p.Nick
+	}
+	return []string{
+		fmt.Sprintf("Quest begun! %s have been sent to %s. They must complete it within %s.",
+			strings.Join(names, ", "), desc, fmtDuration(int64(duration.Seconds()))),
+	}
+}
+
+// resolveQuest completes or fails the active quest. Must be called with mu held.
+func (g *Game) resolveQuest(online []*Player) []string {
+	quest := g.quest
+
+	// Check all questers are still online.
+	onlineSet := make(map[*Player]bool, len(online))
+	for _, p := range online {
+		onlineSet[p] = true
+	}
+	allOnline := true
+	for _, qp := range quest.Questers {
+		if !onlineSet[qp] {
+			allOnline = false
+			break
+		}
+	}
+
+	names := make([]string, len(quest.Questers))
+	for i, p := range quest.Questers {
+		names[i] = p.Nick
+	}
+
+	if allOnline {
+		// Success: all questers get 25% TTL reduction.
+		for _, qp := range quest.Questers {
+			change := qp.TTL * 25 / 100
+			qp.TTL -= change
+			if qp.TTL < 1 {
+				qp.TTL = 1
+			}
+		}
+		return []string{
+			fmt.Sprintf("Quest complete! %s have succeeded in their quest to %s! Each receives a 25%% TTL bonus.",
+				strings.Join(names, ", "), quest.Desc),
+		}
+	}
+
+	// Failure: all online players are penalised p15.
+	for _, p := range online {
+		g.applyPenalty(p, 15)
+	}
+	return []string{
+		fmt.Sprintf("Quest failed! %s did not complete their quest to %s in time. All online players suffer a penalty!",
+			strings.Join(names, ", "), quest.Desc),
 	}
 }
 
@@ -432,12 +844,24 @@ func (g *Game) load() {
 	fmt.Printf("loaded %d players\n", len(g.players))
 }
 
+// ttlForLevel returns seconds to next level. After level 60 it adds one day per level
+// to prevent the curve from becoming impossibly steep.
 func ttlForLevel(level int) int64 {
-	return int64(600 * math.Pow(1.16, float64(level)))
+	if level <= 60 {
+		return int64(600 * math.Pow(1.16, float64(level)))
+	}
+	base := int64(600 * math.Pow(1.16, 60))
+	return base + int64(86400*(level-60))
 }
 
-func hashPass(pass string) string {
-	h := sha256.Sum256([]byte(pass))
+func newSalt() string {
+	b := make([]byte, 16)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+func hashPass(salt, pass string) string {
+	h := sha256.Sum256([]byte(salt + pass))
 	return fmt.Sprintf("%x", h)
 }
 
