@@ -401,7 +401,7 @@ func (g *Game) guildBattle() []string {
 		}
 		power := 0
 		for _, p := range online {
-			power += p.itemSum()
+			power += effectiveItemSum(p)
 		}
 		candidates = append(candidates, candidate{guild, online, power})
 	}

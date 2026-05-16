@@ -416,8 +416,9 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 		}
 	}
 	g.mu.Unlock()
-	return fmt.Sprintf("%s, the %s level %d %s [%s]%s — TTL: %s — Items: %d",
-		p.Nick, alignNames[p.Alignment], p.Level, p.Class, status, questInfo, fmtDuration(p.TTL), p.itemSum())
+	return fmt.Sprintf("%s, the %s level %d %s [%s]%s — TTL: %s — Items: %d (focus: %s)",
+		p.Nick, alignNames[p.Alignment], p.Level, p.Class, status, questInfo,
+		fmtDuration(p.TTL), p.itemSum(), itemSlots[classFocusSlot(p.Class)])
 }
 
 // CmdPos returns the grid position of a player (self if no target given).
@@ -687,8 +688,8 @@ func (g *Game) battle(a, b *Player) {
 		return sum
 	}
 
-	aSum := alignBonus(a, a.itemSum())
-	bSum := alignBonus(b, b.itemSum())
+	aSum := alignBonus(a, effectiveItemSum(a))
+	bSum := alignBonus(b, effectiveItemSum(b))
 	if aSum < 1 {
 		aSum = 1
 	}
@@ -752,12 +753,12 @@ func (g *Game) battle(a, b *Player) {
 func (g *Game) botBattle(p *Player) string {
 	botSum := 1
 	for _, op := range g.players {
-		if s := op.itemSum(); s > botSum-1 {
+		if s := effectiveItemSum(op); s > botSum-1 {
 			botSum = s + 1
 		}
 	}
 
-	pSum := p.itemSum()
+	pSum := effectiveItemSum(p)
 	if pSum < 1 {
 		pSum = 1
 	}
@@ -925,10 +926,10 @@ func (g *Game) teamBattle(online []*Player) []string {
 
 	sumA, sumB := 0, 0
 	for _, p := range teamA {
-		sumA += p.itemSum()
+		sumA += effectiveItemSum(p)
 	}
 	for _, p := range teamB {
-		sumB += p.itemSum()
+		sumB += effectiveItemSum(p)
 	}
 	if sumA < 1 {
 		sumA = 1
@@ -1242,6 +1243,28 @@ func extractNick(src string) string {
 		return src[:idx]
 	}
 	return src
+}
+
+// classFocusSlot returns the item slot index (0-9) that is the focus of a given
+// class. Derived via FNV-1a hash so every free-form class name maps to a unique,
+// deterministic slot without requiring a fixed class list.
+func classFocusSlot(class string) int {
+	h := uint32(2166136261)
+	for i := 0; i < len(class); i++ {
+		c := class[i]
+		if c >= 'A' && c <= 'Z' {
+			c += 32 // lowercase
+		}
+		h ^= uint32(c)
+		h *= 16777619
+	}
+	return int(h%10)
+}
+
+// effectiveItemSum returns the battle-relevant item sum for a player: the raw sum
+// with the focus slot counted twice (the class bonus).
+func effectiveItemSum(p *Player) int {
+	return p.itemSum() + p.Items[classFocusSlot(p.Class)]
 }
 
 func fmtDuration(secs int64) string {

@@ -19,8 +19,8 @@
 - [x] **Guild system** — players can form guilds; guild battles and guild quests.
 - [x] **Grid/map system** — 500×500 coordinate space; players move randomly each second;
       location-based 1v1 encounters when two players share a tile.
-- [ ] **Class bonuses** — weapon-slot bonuses tied to character class
-      (e.g. Warriors get +ATK with weapon items).
+- [x] **Class bonuses** — focus slot derived from class name via FNV-1a hash;
+      that slot counts double in all battle rolls.
 
 ## Low Priority / Nice to Have
 
