@@ -22,6 +22,7 @@ All flags:
 | `-channel` | `#idlerpg` | Game channel |
 | `-data` | `idlerpg.json` | Player data file (JSON, created automatically) |
 | `-guilds` | `guilds.json` | Guild data file (JSON, created automatically) |
+| `-autologin` | `false` | Auto-login registered players already in channel on startup |
 
 ## Player Commands
 
