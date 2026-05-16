@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	mathrand "math/rand"
 	"os"
 	"sort"
@@ -473,11 +474,11 @@ func (g *Game) saveGuilds() {
 	data, err := json.MarshalIndent(g.guilds, "", "  ")
 	g.mu.Unlock()
 	if err != nil {
-		fmt.Println("saveGuilds error:", err)
+		log.Println("saveGuilds error:", err)
 		return
 	}
 	if err := os.WriteFile(g.guildsFile, data, 0644); err != nil {
-		fmt.Println("writeGuilds error:", err)
+		log.Println("writeGuilds error:", err)
 	}
 }
 
@@ -488,14 +489,14 @@ func (g *Game) loadGuilds() {
 	data, err := os.ReadFile(g.guildsFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			fmt.Println("loadGuilds error:", err)
+			log.Println("loadGuilds error:", err)
 		}
 		return
 	}
 	if err := json.Unmarshal(data, &g.guilds); err != nil {
-		fmt.Println("parseGuilds error:", err)
+		log.Println("parseGuilds error:", err)
 		return
 	}
-	fmt.Printf("loaded %d guilds\n", len(g.guilds))
+	log.Printf("loaded %d guilds", len(g.guilds))
 }
 

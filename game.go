@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	mathrand "math/rand"
 	"os"
@@ -1290,11 +1291,11 @@ func (g *Game) save() {
 	data, err := json.MarshalIndent(g.players, "", "  ")
 	g.mu.Unlock()
 	if err != nil {
-		fmt.Println("save error:", err)
+		log.Println("save error:", err)
 		return
 	}
 	if err := os.WriteFile(g.dataFile, data, 0644); err != nil {
-		fmt.Println("write error:", err)
+		log.Println("write error:", err)
 	}
 }
 
@@ -1305,19 +1306,19 @@ func (g *Game) load() {
 	data, err := os.ReadFile(g.dataFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			fmt.Println("load error:", err)
+			log.Println("load error:", err)
 		}
 		return
 	}
 	if err := json.Unmarshal(data, &g.players); err != nil {
-		fmt.Println("parse error:", err)
+		log.Println("parse error:", err)
 		return
 	}
 	for _, p := range g.players {
 		p.Online = false
 		p.Addr = ""
 	}
-	fmt.Printf("loaded %d players\n", len(g.players))
+	log.Printf("loaded %d players", len(g.players))
 }
 
 // ttlForLevel returns seconds to next level. After level 60 it adds one day per level
