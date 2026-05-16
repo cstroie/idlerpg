@@ -34,6 +34,9 @@ func main() {
 	}
 
 	game := newGame(*dataFile, *guildsFile, say)
+	game.setTopic = func(topic string) {
+		conn.Topic(*channel, topic)
+	}
 
 	conn.HandleFunc("connected", func(c *irc.Conn, line *irc.Line) {
 		log.Println("Connected, joining", *channel)

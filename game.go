@@ -155,6 +155,8 @@ type Game struct {
 	dataFile   string
 	guildsFile string
 	say        func(string) // sends a message to the game channel
+	setTopic   func(string) // sets the channel topic (wired after construction)
+	lastEvent  string       // short description of the most recent notable event
 	stopTick   chan struct{}
 	quest      *Quest
 }
@@ -178,6 +180,7 @@ func (g *Game) start() {
 	}
 	g.stopTick = make(chan struct{})
 	go g.tick(g.stopTick)
+	g.updateTopic()
 }
 
 // OnJoin auto-logins a registered player when they join the channel.
@@ -196,6 +199,7 @@ func (g *Game) OnJoin(src string) {
 		g.save()
 		g.say(fmt.Sprintf("%s, the level %d %s, has joined IdleRPG at (%d,%d)! Next level in %s.",
 			p.Nick, p.Level, p.Class, p.X, p.Y, fmtDuration(p.TTL)))
+		g.noteEvent(fmt.Sprintf("%s (lvl %d) joined", p.Nick, p.Level))
 	}
 }
 
@@ -210,6 +214,7 @@ func (g *Game) OnPart(src string) {
 	g.mu.Unlock()
 	if p != nil {
 		g.save()
+		g.updateTopic()
 	}
 }
 
@@ -231,6 +236,7 @@ func (g *Game) OnQuit(src string) {
 	g.mu.Unlock()
 	if p != nil {
 		g.save()
+		g.updateTopic()
 	}
 }
 
@@ -654,6 +660,28 @@ func (g *Game) tick(stop <-chan struct{}) {
 			g.quest = nil
 		}
 
+		topicWorthy := len(levelUps) > 0 || len(encounterPairs) > 0
+
+		// Capture notable tick events for the topic before unlocking.
+		var tickEvent string
+		for _, m := range msgs {
+			if strings.Contains(m, "Quest") || strings.Contains(m, "quest") ||
+				strings.Contains(m, "Guild battle") || strings.Contains(m, "Team battle") ||
+				strings.Contains(m, "hand of") || strings.Contains(m, "Hand of") ||
+				strings.Contains(m, "god") || strings.Contains(m, "LEGENDARY") {
+				tickEvent = m
+				topicWorthy = true
+				break
+			}
+		}
+		if tickEvent != "" {
+			// Trim to a topic-friendly length.
+			if len(tickEvent) > 80 {
+				tickEvent = tickEvent[:77] + "..."
+			}
+			g.lastEvent = tickEvent
+		}
+
 		g.mu.Unlock()
 
 		for _, msg := range msgs {
@@ -667,6 +695,9 @@ func (g *Game) tick(stop <-chan struct{}) {
 		}
 		if len(levelUps) > 0 {
 			g.save()
+		}
+		if topicWorthy {
+			g.updateTopic()
 		}
 	}
 }
@@ -722,6 +753,17 @@ func (g *Game) doLevelUp(p *Player) {
 	}
 	g.say(fmt.Sprintf("%s has attained level %d! Next level in %s. They find a %s of level %d%s%s [item total: %d].",
 		nick, level, fmtDuration(ttl), itemDesc, itemLevel, equipped, label, isum))
+
+	switch itemRarity {
+	case rarityLegendary:
+		g.noteEvent(fmt.Sprintf("✦ %s found %s — LEGENDARY!", nick, itemName))
+	case rarityRare:
+		g.noteEvent(fmt.Sprintf("★ %s found %s (Rare) at lvl %d", nick, itemName, level))
+	case rarityUncommon:
+		g.noteEvent(fmt.Sprintf("%s reached lvl %d, found %s", nick, level, itemName))
+	default:
+		g.noteEvent(fmt.Sprintf("%s reached lvl %d", nick, level))
+	}
 
 	if len(opponents) > 0 {
 		g.battle(p, opponents[mathrand.Intn(len(opponents))])
@@ -1304,6 +1346,79 @@ func extractNick(src string) string {
 		return src[:idx]
 	}
 	return src
+}
+
+var idleFlavors = []string{
+	"The realm awaits brave heroes.",
+	"Silence fills the land — idle and grow strong.",
+	"Fortune favours the patient.",
+	"The gods grow restless for new champions.",
+	"Adventure calls... but patience pays.",
+	"Even legends began by doing nothing.",
+}
+
+// updateTopic rebuilds and sets the channel topic from current game state.
+// Safe to call from any goroutine; must NOT be called while holding mu.
+func (g *Game) updateTopic() {
+	if g.setTopic == nil {
+		return
+	}
+
+	g.mu.Lock()
+	online := 0
+	var top *Player
+	for _, p := range g.players {
+		if p.Online {
+			online++
+		}
+		if top == nil || p.Level > top.Level || (p.Level == top.Level && p.TTL < top.TTL) {
+			top = p
+		}
+	}
+	total := len(g.players)
+
+	var questPart string
+	if g.quest != nil {
+		remaining := fmtDuration(int64(time.Until(g.quest.EndsAt).Seconds()))
+		if g.quest.IsGrid {
+			questPart = fmt.Sprintf("Grid quest: (%d,%d) — %s [%s left]",
+				g.quest.QX, g.quest.QY, g.quest.Desc, remaining)
+		} else {
+			questPart = fmt.Sprintf("Quest: %s [%s left]", g.quest.Desc, remaining)
+		}
+	}
+	lastEvent := g.lastEvent
+	g.mu.Unlock()
+
+	parts := []string{"⚔ IdleRPG"}
+
+	if online == 0 && total == 0 {
+		parts = append(parts, idleFlavors[mathrand.Intn(len(idleFlavors))])
+	} else {
+		parts = append(parts, fmt.Sprintf("%d/%d idling", online, total))
+		if top != nil {
+			parts = append(parts, fmt.Sprintf("Top: %s lvl %d %s", top.Nick, top.Level, top.Class))
+		}
+		if questPart != "" {
+			parts = append(parts, questPart)
+		}
+		if lastEvent != "" {
+			parts = append(parts, lastEvent)
+		} else if online == 0 {
+			parts = append(parts, idleFlavors[mathrand.Intn(len(idleFlavors))])
+		}
+	}
+
+	g.setTopic(strings.Join(parts, " | "))
+}
+
+// noteEvent records a short event description and refreshes the topic.
+// Must NOT be called while holding mu.
+func (g *Game) noteEvent(msg string) {
+	g.mu.Lock()
+	g.lastEvent = msg
+	g.mu.Unlock()
+	g.updateTopic()
 }
 
 // classFocusSlot returns the item slot index (0-9) that is the focus of a given
