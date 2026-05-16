@@ -160,6 +160,14 @@ func main() {
 		case "!gtop":
 			reply(game.CmdGTop())
 
+		case "!dualclass":
+			if len(fields) < 2 {
+				reply("Usage: !dualclass <class>")
+				return
+			}
+			class := strings.Join(fields[1:], " ")
+			reply(game.CmdDualClass(src, class))
+
 		case "!align":
 			if len(fields) < 2 {
 				reply("Usage: !align <good|neutral|evil>")
@@ -191,6 +199,7 @@ func main() {
 			reply("IdleRPG commands: " +
 				"!register <nick> <class> <pass> | " +
 				"!login <pass> | !logout | " +
+				"!dualclass <class> (level 12+, permanent) | " +
 				"!align <good|neutral|evil> | " +
 				"!status [nick] | !whoami | !top | !pos [nick] | " +
 				"!gcreate <name> | !ginvite <nick> | !gaccept | !gdecline | " +

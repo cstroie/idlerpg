@@ -127,6 +127,7 @@ type Quest struct {
 type Player struct {
 	Nick      string
 	Class     string
+	Class2    string // second class chosen at level 12+, empty if not dual-classed
 	PassSalt  string
 	PassHash  string
 	Alignment int8
@@ -390,6 +391,40 @@ func (g *Game) CmdAlign(src, align string) string {
 	return fmt.Sprintf("%s is already %s.", p.Nick, alignNames[newAlign])
 }
 
+// CmdDualClass lets a player at level 12+ choose a permanent second class.
+func (g *Game) CmdDualClass(src, class string) string {
+	class = strings.TrimSpace(class)
+	if class == "" {
+		return "Usage: !dualclass <class>"
+	}
+	g.mu.Lock()
+	p := g.findByAddr(src)
+	if p == nil {
+		g.mu.Unlock()
+		return "You are not logged in."
+	}
+	if p.Level < 12 {
+		g.mu.Unlock()
+		return fmt.Sprintf("You must be at least level 12 to dual-class (you are level %d).", p.Level)
+	}
+	if p.Class2 != "" {
+		g.mu.Unlock()
+		return fmt.Sprintf("You are already dual-classed as %s/%s.", p.Class, p.Class2)
+	}
+	p.Class2 = class
+	slot1 := classFocusSlot(p.Class)
+	slot2 := classFocusSlot(p.Class2)
+	nick := p.Nick
+	g.mu.Unlock()
+	g.save()
+	if slot1 == slot2 {
+		return fmt.Sprintf("%s is now a %s/%s! Both classes share the %s focus — that slot counts triple in battle.",
+			nick, p.Class, class, itemSlots[slot1])
+	}
+	return fmt.Sprintf("%s is now a %s/%s! Primary focus: %s. Secondary focus: %s. Both count double in battle.",
+		nick, p.Class, class, itemSlots[slot1], itemSlots[slot2])
+}
+
 // CmdStatus returns a player's status string.
 func (g *Game) CmdStatus(src, targetNick string) string {
 	if targetNick == "" {
@@ -416,9 +451,20 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 		}
 	}
 	g.mu.Unlock()
+	classDisplay := p.Class
+	focusDisplay := itemSlots[classFocusSlot(p.Class)]
+	if p.Class2 != "" {
+		classDisplay = p.Class + "/" + p.Class2
+		slot2 := itemSlots[classFocusSlot(p.Class2)]
+		if slot2 == focusDisplay {
+			focusDisplay += "×3"
+		} else {
+			focusDisplay += "+" + slot2
+		}
+	}
 	return fmt.Sprintf("%s, the %s level %d %s [%s]%s — TTL: %s — Items: %d (focus: %s)",
-		p.Nick, alignNames[p.Alignment], p.Level, p.Class, status, questInfo,
-		fmtDuration(p.TTL), p.itemSum(), itemSlots[classFocusSlot(p.Class)])
+		p.Nick, alignNames[p.Alignment], p.Level, classDisplay, status, questInfo,
+		fmtDuration(p.TTL), p.itemSum(), focusDisplay)
 }
 
 // CmdPos returns the grid position of a player (self if no target given).
@@ -1262,9 +1308,14 @@ func classFocusSlot(class string) int {
 }
 
 // effectiveItemSum returns the battle-relevant item sum for a player: the raw sum
-// with the focus slot counted twice (the class bonus).
+// with each class's focus slot counted an extra time. Dual-classed players add
+// two focus-slot bonuses (which stack if both classes share the same slot).
 func effectiveItemSum(p *Player) int {
-	return p.itemSum() + p.Items[classFocusSlot(p.Class)]
+	sum := p.itemSum() + p.Items[classFocusSlot(p.Class)]
+	if p.Class2 != "" {
+		sum += p.Items[classFocusSlot(p.Class2)]
+	}
+	return sum
 }
 
 func fmtDuration(secs int64) string {
