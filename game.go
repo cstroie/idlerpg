@@ -515,6 +515,10 @@ func (g *Game) tick(stop <-chan struct{}) {
 				if mathrand.Intn(86400) == 0 {
 					msgs = append(msgs, g.randomEvent(p))
 				}
+				// Bot battle: ~once per day per player.
+				if mathrand.Intn(86400) == 0 {
+					msgs = append(msgs, g.botBattle(p))
+				}
 				switch p.Alignment {
 				case AlignGood:
 					// ~once per 12 days per good player
@@ -740,6 +744,47 @@ func (g *Game) battle(a, b *Player) {
 	if stealMsg != "" {
 		g.say(stealMsg)
 	}
+}
+
+// botBattle pits a player against the bot. Bot item sum = 1 + highest player sum
+// across all registered players. Win: 20% TTL reduction. Loss: 10% TTL increase.
+// Must be called with mu held.
+func (g *Game) botBattle(p *Player) string {
+	botSum := 1
+	for _, op := range g.players {
+		if s := op.itemSum(); s > botSum-1 {
+			botSum = s + 1
+		}
+	}
+
+	pSum := p.itemSum()
+	if pSum < 1 {
+		pSum = 1
+	}
+
+	pRoll := mathrand.Intn(pSum)
+	botRoll := mathrand.Intn(botSum)
+
+	if pRoll >= botRoll {
+		change := p.TTL * 20 / 100
+		if change < 1 {
+			change = 1
+		}
+		p.TTL -= change
+		if p.TTL < 1 {
+			p.TTL = 1
+		}
+		return fmt.Sprintf("%s [%d/%d] challenges the bot [%d/%d] and wins! TTL reduced by 20%%.",
+			p.Nick, pRoll, pSum, botRoll, botSum)
+	}
+
+	change := p.TTL * 10 / 100
+	if change < 1 {
+		change = 1
+	}
+	p.TTL += change
+	return fmt.Sprintf("%s [%d/%d] challenges the bot [%d/%d] and loses! TTL increased by 10%%.",
+		p.Nick, pRoll, pSum, botRoll, botSum)
 }
 
 // tryStealItem gives the winner a 3% chance to steal one item from the loser.
