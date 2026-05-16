@@ -188,6 +188,13 @@ func main() {
 		case "!top":
 			reply(game.CmdTop())
 
+		case "!items":
+			target := ""
+			if len(fields) >= 2 {
+				target = fields[1]
+			}
+			reply(game.CmdItems(src, target))
+
 		case "!pos":
 			target := ""
 			if len(fields) >= 2 {
@@ -201,7 +208,7 @@ func main() {
 				"!login <pass> | !logout | " +
 				"!dualclass <class> (level 12+, permanent) | " +
 				"!align <good|neutral|evil> | " +
-				"!status [nick] | !whoami | !top | !pos [nick] | " +
+				"!status [nick] | !whoami | !top | !items [nick] | !pos [nick] | " +
 				"!gcreate <name> | !ginvite <nick> | !gaccept | !gdecline | " +
 				"!gleave | !gkick <nick> | !ginfo [name] | !gtop")
 

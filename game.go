@@ -133,7 +133,8 @@ type Player struct {
 	Alignment int8
 	Level     int
 	TTL       int64   // seconds until next level
-	Items     [10]int // item level per slot
+	Items     [10]int    // item level per slot
+	ItemNames [10]string // unique name for each slot, empty for normal items
 	Online    bool
 	Addr      string // nick!user@host when online
 	X, Y      int    // position on the 500×500 grid (randomised on each login)
@@ -686,12 +687,11 @@ func (g *Game) doLevelUp(p *Player) {
 	p.Level++
 	p.TTL = ttlForLevel(p.Level)
 
-	slot := mathrand.Intn(10)
-	maxItem := int(math.Max(float64(p.Level)*1.5, 1))
-	itemLevel := mathrand.Intn(maxItem) + 1
+	slot, itemLevel, itemName, itemRarity := rollItemDrop(p)
 	improved := itemLevel > p.Items[slot]
 	if improved {
 		p.Items[slot] = itemLevel
+		p.ItemNames[slot] = itemName
 	}
 	slotName := itemSlots[slot]
 	nick := p.Nick
@@ -708,12 +708,20 @@ func (g *Game) doLevelUp(p *Player) {
 	}
 	g.mu.Unlock()
 
+	itemDesc := slotName
+	if itemName != "" {
+		itemDesc = fmt.Sprintf("%s (%s)", itemName, slotName)
+	}
 	equipped := ""
 	if improved {
 		equipped = " (equipped!)"
 	}
-	g.say(fmt.Sprintf("%s has attained level %d! Next level in %s. They find a %s of level %d%s [item total: %d].",
-		nick, level, fmtDuration(ttl), slotName, itemLevel, equipped, isum))
+	label := ""
+	if itemRarity != rarityNormal {
+		label = " " + rarityLabel(itemRarity)
+	}
+	g.say(fmt.Sprintf("%s has attained level %d! Next level in %s. They find a %s of level %d%s%s [item total: %d].",
+		nick, level, fmtDuration(ttl), itemDesc, itemLevel, equipped, label, isum))
 
 	if len(opponents) > 0 {
 		g.battle(p, opponents[mathrand.Intn(len(opponents))])
@@ -852,14 +860,21 @@ func (g *Game) tryStealItem(winner, loser *Player) string {
 	}
 	slot := candidates[mathrand.Intn(len(candidates))]
 	stolen := loser.Items[slot]
+	stolenName := loser.ItemNames[slot]
 	loser.Items[slot] = 0
+	loser.ItemNames[slot] = ""
+	itemDesc := itemSlots[slot]
+	if stolenName != "" {
+		itemDesc = stolenName + " (" + itemSlots[slot] + ")"
+	}
 	if stolen > winner.Items[slot] {
 		winner.Items[slot] = stolen
+		winner.ItemNames[slot] = stolenName
 		return fmt.Sprintf("%s steals %s's %s (level %d) and equips it!",
-			winner.Nick, loser.Nick, itemSlots[slot], stolen)
+			winner.Nick, loser.Nick, itemDesc, stolen)
 	}
 	return fmt.Sprintf("%s steals %s's %s (level %d) but it's worse than their own — discarded.",
-		winner.Nick, loser.Nick, itemSlots[slot], stolen)
+		winner.Nick, loser.Nick, itemDesc, stolen)
 }
 
 // randomEvent fires a random individual event for one player. Must be called with mu held.

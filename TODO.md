@@ -6,7 +6,7 @@
       battle crit chance, and item steal eligibility. Store as `Alignment int8` (-1/0/1).
 - [x] **Bot vs. player battles** — periodic challenge against the bot itself;
       bot item sum = 1 + highest player sum; win gives 20% TTL reduction, loss 10% penalty.
-- [ ] **Unique/legendary items** — rare drops after level 25 that exceed the 1.5× cap;
+- [x] **Unique/legendary items** — rare drops after level 25 that exceed the 1.5× cap;
       announce with special message.
 - [ ] **`!quest` status command** — show active quest details and time remaining.
 
