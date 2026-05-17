@@ -27,7 +27,7 @@
 - [x] **Dual-classing** — choose a second class at level 12 for hybrid bonuses.
 - [x] **`!items` command** — show a player's full item loadout by slot.
 - [x] **`!online` command** — list currently online players.
-- [ ] **Weighted item drops** — use `1/(1.4^N)` probability curve so higher-level
+- [x] **Weighted item drops** — use `1/(1.4^N)` probability curve so higher-level
       items are exponentially rarer (currently uniform).
 - [ ] **NickServ/SASL auth** — identify the bot to NickServ on connect.
 - [ ] **Configurable rates** — expose event frequency multipliers as CLI flags.

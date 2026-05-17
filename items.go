@@ -73,6 +73,31 @@ func generateItemName(rarity, slot string) string {
 	return prefix + " " + noun
 }
 
+// weightedItemLevel picks a level in [min, max] with probability proportional
+// to 1/(1.4^k) where k = level-min, making higher levels exponentially rarer.
+func weightedItemLevel(min, max int) int {
+	if min >= max {
+		return min
+	}
+	const base = 1.4
+	n := max - min + 1
+	weights := make([]float64, n)
+	total := 0.0
+	for k := range weights {
+		w := 1.0 / math.Pow(base, float64(k))
+		weights[k] = w
+		total += w
+	}
+	r := mathrand.Float64() * total
+	for k, w := range weights {
+		r -= w
+		if r <= 0 {
+			return min + k
+		}
+	}
+	return min
+}
+
 // rollItemDrop determines a level-up item drop for the player.
 // Returns slot index, item level, unique name (empty for normal), and rarity string.
 // Must be called with the player's level already incremented.
@@ -86,7 +111,7 @@ func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 		if max <= min {
 			max = min + 1
 		}
-		level = min + mathrand.Intn(max-min+1)
+		level = weightedItemLevel(min, max)
 		name = generateItemName(rarityLegendary, slotName)
 		return slot, level, name, rarityLegendary
 	}
@@ -97,7 +122,7 @@ func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 		if max <= min {
 			max = min + 1
 		}
-		level = min + mathrand.Intn(max-min+1)
+		level = weightedItemLevel(min, max)
 		name = generateItemName(rarityRare, slotName)
 		return slot, level, name, rarityRare
 	}
@@ -108,14 +133,14 @@ func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 		if max <= min {
 			max = min + 1
 		}
-		level = min + mathrand.Intn(max-min+1)
+		level = weightedItemLevel(min, max)
 		name = generateItemName(rarityUncommon, slotName)
 		return slot, level, name, rarityUncommon
 	}
 
-	// Normal drop: level 1 to 1.5× player level.
+	// Normal drop: level 1 to 1.5× player level, weighted toward lower values.
 	maxNormal := int(math.Max(float64(p.Level)*1.5, 1))
-	level = mathrand.Intn(maxNormal) + 1
+	level = weightedItemLevel(1, maxNormal)
 	return slot, level, "", rarityNormal
 }
 
