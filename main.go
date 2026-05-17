@@ -134,6 +134,17 @@ func main() {
 			return
 		}
 
+		// Penalize all channel messages (commands included) — talking means not idling.
+		// Redirect command replies to PM so the channel stays clean.
+		if ch == *channel {
+			game.OnPrivmsg(src, text)
+			if strings.HasPrefix(text, "!") {
+				senderNick := extractNick(src)
+				replyTo = senderNick
+				conn.Privmsg(senderNick, "Tip: use PM for bot commands to avoid talk penalties.")
+			}
+		}
+
 		switch fields[0] {
 		case "!register":
 			if len(fields) < 4 {
@@ -227,6 +238,9 @@ func main() {
 		case "!top":
 			reply(game.CmdTop())
 
+		case "!online":
+			reply(game.CmdOnline())
+
 		case "!items":
 			target := ""
 			if len(fields) >= 2 {
@@ -247,15 +261,10 @@ func main() {
 				"!login <pass> | !logout | " +
 				"!dualclass <class> (level 12+, permanent) | " +
 				"!align <good|neutral|evil> | " +
-				"!status [nick] | !whoami | !top | !items [nick] | !pos [nick] | " +
+				"!status [nick] | !whoami | !top | !online | !items [nick] | !pos [nick] | " +
 				"!gcreate <name> | !ginvite <nick> | !gaccept | !gdecline | " +
 				"!gleave | !gkick <nick> | !ginfo [name] | !gtop")
 
-		default:
-			// Penalize online players for talking in channel (not PMs, not commands).
-			if ch == *channel && !strings.HasPrefix(text, "!") {
-				game.OnPrivmsg(src, text)
-			}
 		}
 	})
 

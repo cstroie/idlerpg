@@ -546,6 +546,24 @@ func (g *Game) CmdTop() string {
 	return "Top players: " + strings.Join(parts, " | ")
 }
 
+// CmdOnline lists all currently online players.
+func (g *Game) CmdOnline() string {
+	g.mu.Lock()
+	var parts []string
+	for _, p := range g.players {
+		if p.Online {
+			parts = append(parts, fmt.Sprintf("%s (lvl %d)", p.Nick, p.Level))
+		}
+	}
+	g.mu.Unlock()
+
+	if len(parts) == 0 {
+		return "No players currently online."
+	}
+	sort.Strings(parts)
+	return fmt.Sprintf("Online (%d): %s", len(parts), strings.Join(parts, ", "))
+}
+
 func (g *Game) tick(stop <-chan struct{}) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
