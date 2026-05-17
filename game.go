@@ -546,6 +546,33 @@ func (g *Game) CmdTop() string {
 	return "Top players: " + strings.Join(parts, " | ")
 }
 
+// CmdQuest returns the status of the active quest, if any.
+func (g *Game) CmdQuest() string {
+	g.mu.Lock()
+	q := g.quest
+	g.mu.Unlock()
+
+	if q == nil {
+		return "No quest is currently active."
+	}
+
+	names := make([]string, len(q.Questers))
+	for i, p := range q.Questers {
+		names[i] = p.Nick
+	}
+	questers := strings.Join(names, ", ")
+
+	if q.IsGrid {
+		remaining := time.Until(q.EndsAt)
+		reached := len(q.Reached)
+		total := len(q.Questers)
+		return fmt.Sprintf("Grid quest: %s must reach (%d,%d) to %s — %d/%d there, %s remaining.",
+			questers, q.QX, q.QY, q.Desc, reached, total, fmtDuration(int64(remaining.Seconds())))
+	}
+	return fmt.Sprintf("Quest: %s are on a mission to %s — %s remaining.",
+		questers, q.Desc, fmtDuration(int64(time.Until(q.EndsAt).Seconds())))
+}
+
 // CmdOnline lists all currently online players.
 func (g *Game) CmdOnline() string {
 	g.mu.Lock()

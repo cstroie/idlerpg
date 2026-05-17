@@ -241,6 +241,9 @@ func main() {
 		case "!online":
 			reply(game.CmdOnline())
 
+		case "!quest":
+			reply(game.CmdQuest())
+
 		case "!items":
 			target := ""
 			if len(fields) >= 2 {
@@ -261,7 +264,7 @@ func main() {
 				"!login <pass> | !logout | " +
 				"!dualclass <class> (level 12+, permanent) | " +
 				"!align <good|neutral|evil> | " +
-				"!status [nick] | !whoami | !top | !online | !items [nick] | !pos [nick] | " +
+				"!status [nick] | !whoami | !top | !online | !quest | !items [nick] | !pos [nick] | " +
 				"!gcreate <name> | !ginvite <nick> | !gaccept | !gdecline | " +
 				"!gleave | !gkick <nick> | !ginfo [name] | !gtop")
 

@@ -8,7 +8,7 @@
       bot item sum = 1 + highest player sum; win gives 20% TTL reduction, loss 10% penalty.
 - [x] **Unique/legendary items** — rare drops after level 25 that exceed the 1.5× cap;
       announce with special message.
-- [ ] **`!quest` status command** — show active quest details and time remaining.
+- [x] **`!quest` status command** — show active quest details and time remaining.
 
 ## Medium Priority
 
