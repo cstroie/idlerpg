@@ -118,9 +118,9 @@ const questMinPlayers = 4
 const gridSize = 500
 
 type Quest struct {
-	Questers   []*Player
-	EndsAt     time.Time
-	Desc       string
+	Questers      []*Player
+	EndsAt        time.Time
+	Desc          string
 	OnlineAtStart map[string]bool // lowercase nicks online when quest began; only these are penalised on failure
 	// Grid-based quest fields.
 	IsGrid  bool
@@ -136,7 +136,7 @@ type Player struct {
 	PassHash  string
 	Alignment int8
 	Level     int
-	TTL       int64   // seconds until next level
+	TTL       int64      // seconds until next level
 	Items     [10]int    // item level per slot
 	ItemNames [10]string // unique name for each slot, empty for normal items
 	Online    bool
@@ -163,7 +163,7 @@ type Game struct {
 	lastEvent  string       // short description of the most recent notable event
 	stopTick   chan struct{}
 	quest      *Quest
-	DevMode    bool         // speeds up TTL by 5× for development
+	DevMode    bool // speeds up TTL by 5× for development
 }
 
 func newGame(dataFile, guildsFile string, say func(string)) *Game {
@@ -612,130 +612,18 @@ func (g *Game) tick(stop <-chan struct{}) {
 		}
 
 		g.mu.Lock()
-		var levelUps []*Player
-		var msgs []string
-
 		online := g.onlinePlayers()
 
-		for _, p := range online {
-			p.TTL--
-			if p.TTL <= 0 {
-				levelUps = append(levelUps, p)
-			} else {
-				if mathrand.Intn(86400) == 0 {
-					msgs = append(msgs, g.randomEvent(p))
-				}
-				// Bot battle: ~once per day per player.
-				if mathrand.Intn(86400) == 0 {
-					msgs = append(msgs, g.botBattle(p))
-				}
-				switch p.Alignment {
-				case AlignGood:
-					// ~once per 12 days per good player
-					if mathrand.Intn(86400*12) == 0 {
-						if m := g.goodAlignmentEvent(p, online); m != "" {
-							msgs = append(msgs, m)
-						}
-					}
-				case AlignEvil:
-					// ~once per 8 days per evil player
-					if mathrand.Intn(86400*8) == 0 {
-						msgs = append(msgs, g.evilAlignmentEvent(p, online))
-					}
-				}
-			}
-		}
-
-		// Move every online player one step in a random direction (toroidal wrap).
-		posMap := make(map[[2]int][]*Player, len(online))
-		for _, p := range online {
-			p.X = (p.X + mathrand.Intn(3) - 1 + gridSize) % gridSize
-			p.Y = (p.Y + mathrand.Intn(3) - 1 + gridSize) % gridSize
-			key := [2]int{p.X, p.Y}
-			posMap[key] = append(posMap[key], p)
-		}
-
-		// Location-based encounters: 1/len(online) chance per shared tile.
-		var encounterPairs [][2]*Player
-		if len(online) > 0 {
-			for _, group := range posMap {
-				if len(group) >= 2 && mathrand.Intn(len(online)) == 0 {
-					mathrand.Shuffle(len(group), func(i, j int) { group[i], group[j] = group[j], group[i] })
-					encounterPairs = append(encounterPairs, [2]*Player{group[0], group[1]})
-					// One encounter per tick to avoid flooding.
-					break
-				}
-			}
-		}
-		if len(encounterPairs) > 0 {
-			ep := encounterPairs[0]
-			msgs = append(msgs, fmt.Sprintf("%s and %s stumble into each other at (%d,%d)!",
-				ep[0].Nick, ep[1].Nick, ep[0].X, ep[0].Y))
-		}
-
-		// Grid quest progress: check if questers have reached the target.
-		if g.quest != nil && g.quest.IsGrid {
-			for _, qp := range g.quest.Questers {
-				nick := strings.ToLower(qp.Nick)
-				if !g.quest.Reached[nick] && qp.X == g.quest.QX && qp.Y == g.quest.QY {
-					g.quest.Reached[nick] = true
-					msgs = append(msgs, fmt.Sprintf("%s has reached the quest destination (%d,%d)!",
-						qp.Nick, g.quest.QX, g.quest.QY))
-				}
-			}
-			allReached := len(g.quest.Reached) == len(g.quest.Questers)
-			if allReached {
-				msgs = append(msgs, g.resolveQuest(online)...)
-				g.quest = nil
-			}
-		}
-
-		// Hand of God: ~once per 20 days across the whole server.
-		if len(online) > 0 && mathrand.Intn(86400*20) == 0 {
-			msgs = append(msgs, g.handOfGod(online[mathrand.Intn(len(online))]))
-		}
-
-		// Team battle: ~4 times per day when at least 6 players are online.
-		if len(online) >= 6 && mathrand.Intn(86400/4) == 0 {
-			msgs = append(msgs, g.teamBattle(online)...)
-		}
-
-		// Guild battle: ~once per day when 2+ guilds have 2+ online members.
-		if mathrand.Intn(86400) == 0 {
-			msgs = append(msgs, g.guildBattle()...)
-		}
-
-		// Quest: ~once per day when conditions are met and no quest is active.
-		if g.quest == nil && mathrand.Intn(86400) == 0 {
-			msgs = append(msgs, g.tryStartQuest(online)...)
-		}
-
-		// Quest resolution.
-		if g.quest != nil && time.Now().After(g.quest.EndsAt) {
-			msgs = append(msgs, g.resolveQuest(online)...)
-			g.quest = nil
-		}
+		levelUps, msgs := g.tickPlayers(online)
+		encounterPairs, gridMsgs := g.tickGrid(online)
+		msgs = append(msgs, gridMsgs...)
+		msgs = append(msgs, g.tickQuestProgress(online)...)
+		msgs = append(msgs, g.tickServerEvents(online)...)
 
 		topicWorthy := len(levelUps) > 0 || len(encounterPairs) > 0
-
-		// Capture notable tick events for the topic before unlocking.
-		var tickEvent string
-		for _, m := range msgs {
-			if strings.Contains(m, "Quest") || strings.Contains(m, "quest") ||
-				strings.Contains(m, "Guild battle") || strings.Contains(m, "Team battle") ||
-				strings.Contains(m, "hand of") || strings.Contains(m, "Hand of") ||
-				strings.Contains(m, "god") || strings.Contains(m, "LEGENDARY") {
-				tickEvent = m
-				topicWorthy = true
-				break
-			}
-		}
-		if tickEvent != "" {
-			// Trim to a topic-friendly length.
-			if len(tickEvent) > 80 {
-				tickEvent = tickEvent[:77] + "..."
-			}
-			g.lastEvent = tickEvent
+		if ev := g.captureNotableEvent(msgs); ev != "" {
+			g.lastEvent = ev
+			topicWorthy = true
 		}
 
 		g.mu.Unlock()
@@ -756,6 +644,138 @@ func (g *Game) tick(stop <-chan struct{}) {
 			g.updateTopic()
 		}
 	}
+}
+
+// tickPlayers decrements TTL for each online player, queues level-ups, and fires
+// per-player random/alignment/bot-battle events. Must be called with mu held.
+func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string) {
+	for _, p := range online {
+		p.TTL--
+		if p.TTL <= 0 {
+			levelUps = append(levelUps, p)
+			continue
+		}
+		if mathrand.Intn(86400) == 0 {
+			msgs = append(msgs, g.randomEvent(p))
+		}
+		if mathrand.Intn(86400) == 0 {
+			msgs = append(msgs, g.botBattle(p))
+		}
+		msgs = append(msgs, g.tickAlignmentEvent(p, online)...)
+	}
+	return
+}
+
+// tickAlignmentEvent fires an alignment-specific event for p with appropriate
+// probability. Must be called with mu held.
+func (g *Game) tickAlignmentEvent(p *Player, online []*Player) []string {
+	switch p.Alignment {
+	case AlignGood:
+		if mathrand.Intn(86400*12) == 0 {
+			if m := g.goodAlignmentEvent(p, online); m != "" {
+				return []string{m}
+			}
+		}
+	case AlignEvil:
+		if mathrand.Intn(86400*8) == 0 {
+			return []string{g.evilAlignmentEvent(p, online)}
+		}
+	}
+	return nil
+}
+
+// tickGrid moves every online player one step and detects co-tile encounters.
+// Must be called with mu held.
+func (g *Game) tickGrid(online []*Player) (encounterPairs [][2]*Player, msgs []string) {
+	posMap := make(map[[2]int][]*Player, len(online))
+	for _, p := range online {
+		p.X = (p.X + mathrand.Intn(3) - 1 + gridSize) % gridSize
+		p.Y = (p.Y + mathrand.Intn(3) - 1 + gridSize) % gridSize
+		key := [2]int{p.X, p.Y}
+		posMap[key] = append(posMap[key], p)
+	}
+
+	if len(online) > 0 {
+		for _, group := range posMap {
+			if len(group) >= 2 && mathrand.Intn(len(online)) == 0 {
+				mathrand.Shuffle(len(group), func(i, j int) { group[i], group[j] = group[j], group[i] })
+				encounterPairs = append(encounterPairs, [2]*Player{group[0], group[1]})
+				break // one encounter per tick
+			}
+		}
+	}
+	if len(encounterPairs) > 0 {
+		ep := encounterPairs[0]
+		msgs = append(msgs, fmt.Sprintf("%s and %s stumble into each other at (%d,%d)!",
+			ep[0].Nick, ep[1].Nick, ep[0].X, ep[0].Y))
+	}
+	return
+}
+
+// tickQuestProgress checks whether grid-quest questers have reached the target
+// and resolves the quest when all arrive. Must be called with mu held.
+func (g *Game) tickQuestProgress(online []*Player) []string {
+	if g.quest == nil || !g.quest.IsGrid {
+		return nil
+	}
+	var msgs []string
+	for _, qp := range g.quest.Questers {
+		nick := strings.ToLower(qp.Nick)
+		if !g.quest.Reached[nick] && qp.X == g.quest.QX && qp.Y == g.quest.QY {
+			g.quest.Reached[nick] = true
+			msgs = append(msgs, fmt.Sprintf("%s has reached the quest destination (%d,%d)!",
+				qp.Nick, g.quest.QX, g.quest.QY))
+		}
+	}
+	if len(g.quest.Reached) == len(g.quest.Questers) {
+		msgs = append(msgs, g.resolveQuest(online)...)
+		g.quest = nil
+	}
+	return msgs
+}
+
+// tickServerEvents fires server-wide periodic events: Hand of God, team battle,
+// guild battle, quest start, and quest time-out resolution. Must be called with mu held.
+func (g *Game) tickServerEvents(online []*Player) []string {
+	var msgs []string
+	if len(online) > 0 && mathrand.Intn(86400*20) == 0 {
+		msgs = append(msgs, g.handOfGod(online[mathrand.Intn(len(online))]))
+	}
+	if len(online) >= 6 && mathrand.Intn(86400/4) == 0 {
+		msgs = append(msgs, g.teamBattle(online)...)
+	}
+	if mathrand.Intn(86400) == 0 {
+		msgs = append(msgs, g.guildBattle()...)
+	}
+	if g.quest == nil && mathrand.Intn(86400) == 0 {
+		msgs = append(msgs, g.tryStartQuest(online)...)
+	}
+	if g.quest != nil && time.Now().After(g.quest.EndsAt) {
+		msgs = append(msgs, g.resolveQuest(online)...)
+		g.quest = nil
+	}
+	return msgs
+}
+
+// captureNotableEvent returns the first message worth recording as the last
+// event (for the channel topic), trimmed to 80 characters. Must be called with mu held.
+func (g *Game) captureNotableEvent(msgs []string) string {
+	for _, m := range msgs {
+		if isNotableEvent(m) {
+			if len(m) > 80 {
+				m = m[:77] + "..."
+			}
+			return m
+		}
+	}
+	return ""
+}
+
+func isNotableEvent(m string) bool {
+	return strings.Contains(m, "Quest") || strings.Contains(m, "quest") ||
+		strings.Contains(m, "Guild battle") || strings.Contains(m, "Team battle") ||
+		strings.Contains(m, "hand of") || strings.Contains(m, "Hand of") ||
+		strings.Contains(m, "god") || strings.Contains(m, "LEGENDARY")
 }
 
 // onlinePlayers returns a slice of all online players. Must be called with mu held.
@@ -1460,10 +1480,15 @@ func (g *Game) updateTopic() {
 	if g.setTopic == nil {
 		return
 	}
-
 	g.mu.Lock()
-	online := 0
-	var top *Player
+	topic := g.buildTopic()
+	g.mu.Unlock()
+	g.setTopic(topic)
+}
+
+// buildTopic assembles the channel topic string. Must be called with mu held.
+func (g *Game) buildTopic() string {
+	online, total, top := 0, len(g.players), (*Player)(nil)
 	for _, p := range g.players {
 		if p.Online {
 			online++
@@ -1472,41 +1497,38 @@ func (g *Game) updateTopic() {
 			top = p
 		}
 	}
-	total := len(g.players)
-
-	var questPart string
-	if g.quest != nil {
-		remaining := fmtDuration(int64(time.Until(g.quest.EndsAt).Seconds()))
-		if g.quest.IsGrid {
-			questPart = fmt.Sprintf("Grid quest: (%d,%d) — %s [%s left]",
-				g.quest.QX, g.quest.QY, g.quest.Desc, remaining)
-		} else {
-			questPart = fmt.Sprintf("Quest: %s [%s left]", g.quest.Desc, remaining)
-		}
-	}
-	lastEvent := g.lastEvent
-	g.mu.Unlock()
 
 	parts := []string{"⚔ IdleRPG"}
-
 	if online == 0 && total == 0 {
-		parts = append(parts, idleFlavors[mathrand.Intn(len(idleFlavors))])
-	} else {
-		parts = append(parts, fmt.Sprintf("%d/%d idling", online, total))
-		if top != nil {
-			parts = append(parts, fmt.Sprintf("Top: %s lvl %d %s", top.Nick, top.Level, top.Class))
-		}
-		if questPart != "" {
-			parts = append(parts, questPart)
-		}
-		if lastEvent != "" {
-			parts = append(parts, lastEvent)
-		} else if online == 0 {
-			parts = append(parts, idleFlavors[mathrand.Intn(len(idleFlavors))])
-		}
+		return strings.Join(append(parts, idleFlavors[mathrand.Intn(len(idleFlavors))]), " | ")
 	}
 
-	g.setTopic(strings.Join(parts, " | "))
+	parts = append(parts, fmt.Sprintf("%d/%d idling", online, total))
+	if top != nil {
+		parts = append(parts, fmt.Sprintf("Top: %s lvl %d %s", top.Nick, top.Level, top.Class))
+	}
+	if qp := g.questTopicPart(); qp != "" {
+		parts = append(parts, qp)
+	}
+	if g.lastEvent != "" {
+		parts = append(parts, g.lastEvent)
+	} else if online == 0 {
+		parts = append(parts, idleFlavors[mathrand.Intn(len(idleFlavors))])
+	}
+	return strings.Join(parts, " | ")
+}
+
+// questTopicPart formats the active quest for the channel topic. Must be called with mu held.
+func (g *Game) questTopicPart() string {
+	if g.quest == nil {
+		return ""
+	}
+	remaining := fmtDuration(int64(time.Until(g.quest.EndsAt).Seconds()))
+	if g.quest.IsGrid {
+		return fmt.Sprintf("Grid quest: (%d,%d) — %s [%s left]",
+			g.quest.QX, g.quest.QY, g.quest.Desc, remaining)
+	}
+	return fmt.Sprintf("Quest: %s [%s left]", g.quest.Desc, remaining)
 }
 
 // noteEvent records a short event description and refreshes the topic.
@@ -1531,7 +1553,7 @@ func classFocusSlot(class string) int {
 		h ^= uint32(c)
 		h *= 16777619
 	}
-	return int(h%10)
+	return int(h % 10)
 }
 
 // effectiveItemSum returns the battle-relevant item sum for a player: the raw sum

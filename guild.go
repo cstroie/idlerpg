@@ -389,9 +389,9 @@ func (g *Game) onlineGuildMembers(guild *Guild) []*Player {
 // Must be called with mu held.
 func (g *Game) guildBattle() []string {
 	type candidate struct {
-		guild   *Guild
-		online  []*Player
-		power   int
+		guild  *Guild
+		online []*Player
+		power  int
 	}
 
 	var candidates []candidate
@@ -499,4 +499,3 @@ func (g *Game) loadGuilds() {
 	}
 	log.Printf("loaded %d guilds", len(g.guilds))
 }
-

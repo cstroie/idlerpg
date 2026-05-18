@@ -10,16 +10,15 @@ import (
 	irc "github.com/fluffle/goirc/client"
 )
 
-
 func main() {
-	server   := flag.String("server", "irc.libera.chat:6667", "IRC server host:port")
-	nick     := flag.String("nick", "GoIdle", "Bot nick")
+	server := flag.String("server", "irc.libera.chat:6667", "IRC server host:port")
+	nick := flag.String("nick", "GoIdle", "Bot nick")
 	password := flag.String("password", "", "Server password")
-	ssl      := flag.Bool("ssl", false, "Use SSL")
-	channel  := flag.String("channel", "#idlerpg", "Game channel")
-	dataFile   := flag.String("data", "idlerpg.json", "Player data file")
+	ssl := flag.Bool("ssl", false, "Use SSL")
+	channel := flag.String("channel", "#idlerpg", "Game channel")
+	dataFile := flag.String("data", "idlerpg.json", "Player data file")
 	guildsFile := flag.String("guilds", "guilds.json", "Guild data file")
-	dev        := flag.Bool("dev", false, "Dev mode: auto-login channel members on startup and speed up TTL by 5×")
+	dev := flag.Bool("dev", false, "Dev mode: auto-login channel members on startup and speed up TTL by 5×")
 	nickservPass := flag.String("nickserv", "", "NickServ password (sends IDENTIFY on connect)")
 	flag.Parse()
 
