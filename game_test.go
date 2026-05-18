@@ -716,9 +716,6 @@ func TestBuildTopicWithPlayers(t *testing.T) {
 	topic := g.buildTopic()
 	g.mu.Unlock()
 
-	if !strings.Contains(topic, "Alice") {
-		t.Errorf("topic should contain top player, got %q", topic)
-	}
 	if !strings.Contains(topic, "idling") {
 		t.Errorf("topic should show idling count, got %q", topic)
 	}

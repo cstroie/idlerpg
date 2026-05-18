@@ -502,9 +502,13 @@ type Game struct {
 	// setTopic sets the channel topic. Wired by main after construction.
 	setTopic func(string)
 
-	// lastEvent is a short description of the most recent notable game event,
-	// appended to the channel topic. Updated under mu; read outside mu.
+	// lastEvent is a short description of the most recent notable game event
+	// shown in the channel topic. Updated under mu; read outside mu.
 	lastEvent string
+
+	// lastTopicSet is the time the topic was last pushed to IRC, used to
+	// rate-limit updates so the topic does not change every second.
+	lastTopicSet time.Time
 
 	// stopTick is closed to stop the current tick goroutine. A new channel is
 	// created and a new goroutine launched on each call to start(), which
@@ -605,7 +609,7 @@ func (g *Game) OnJoin(src string) {
 		g.save()
 		g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+", enters the void at ("+iB+"%d,%d"+iB+"). Next phase: "+iB+"%s"+iB+".",
 			p.Name, p.Level, p.Class, p.X, p.Y, fmtDuration(p.TTL)))
-		g.noteEvent(fmt.Sprintf("%s (lvl %d) joined", p.Name, p.Level))
+		g.updateTopic()
 	}
 }
 
@@ -1094,9 +1098,11 @@ func (g *Game) tick(stop <-chan struct{}) {
 		msgs = append(msgs, g.tickServerEvents(online)...)
 
 		topicWorthy := len(levelUps) > 0 || len(encounterPairs) > 0
+		notableEvent := false
 		if ev := g.captureNotableEvent(msgs); ev != "" {
 			g.lastEvent = ev
 			topicWorthy = true
+			notableEvent = true
 		}
 
 		g.mu.Unlock()
@@ -1115,7 +1121,9 @@ func (g *Game) tick(stop <-chan struct{}) {
 		if len(levelUps) > 0 {
 			g.save()
 		}
-		if topicWorthy {
+		if notableEvent {
+			g.pushTopic()
+		} else if topicWorthy {
 			g.updateTopic()
 		}
 	}
@@ -1338,7 +1346,12 @@ func (g *Game) doLevelUp(p *Player) {
 	case rarityReclaimed:
 		g.noteEvent(fmt.Sprintf("%s reached lvl %d, found %s (Reclaimed)", name, level, itemName))
 	default:
-		g.noteEvent(fmt.Sprintf("%s reached lvl %d", name, level))
+		// Regular level-ups are common; store the event but only push the topic
+		// if the rate limit allows, to avoid flooding the IRC topic every minute.
+		g.mu.Lock()
+		g.lastEvent = fmt.Sprintf("%s reached lvl %d", name, level)
+		g.mu.Unlock()
+		g.updateTopic()
 	}
 
 	if len(opponents) > 0 {
@@ -2044,28 +2057,51 @@ var idleFlavors = []string{
 	iI + "Even the Entities began by doing nothing." + iI,
 }
 
-// updateTopic rebuilds and sets the channel topic from current game state.
-// Must NOT be called while holding mu.
+// topicRateLimit is the minimum interval between routine topic updates.
+// Notable events (noteEvent) bypass this and always push immediately.
+const topicRateLimit = 5 * time.Minute
+
+// updateTopic rebuilds and sets the channel topic, but only if the rate limit
+// has elapsed since the last push. Use noteEvent for important updates that
+// must always push. Must NOT be called while holding mu.
 func (g *Game) updateTopic() {
 	if g.setTopic == nil {
 		return
 	}
 	g.mu.Lock()
+	if time.Since(g.lastTopicSet) < topicRateLimit {
+		g.mu.Unlock()
+		return
+	}
 	topic := g.buildTopic()
+	g.lastTopicSet = time.Now()
 	g.mu.Unlock()
 	g.setTopic(topic)
 }
 
-// buildTopic assembles the full channel topic string from the current game
-// state snapshot. Must be called with mu held.
+// pushTopic unconditionally rebuilds and sets the channel topic, bypassing
+// the rate limit. Use for notable events that warrant an immediate update.
+// Must NOT be called while holding mu.
+func (g *Game) pushTopic() {
+	if g.setTopic == nil {
+		return
+	}
+	g.mu.Lock()
+	topic := g.buildTopic()
+	g.lastTopicSet = time.Now()
+	g.mu.Unlock()
+	g.setTopic(topic)
+}
+
+// buildTopic assembles the channel topic: at most three parts.
+//   🌀 Void Drift | N/M idling | <quest or last notable event>
+//
+// Must be called with mu held.
 func (g *Game) buildTopic() string {
-	online, total, top := 0, len(g.players), (*Player)(nil)
+	online, total := 0, len(g.players)
 	for _, p := range g.players {
 		if p.Online {
 			online++
-		}
-		if top == nil || p.Level > top.Level || (p.Level == top.Level && p.TTL < top.TTL) {
-			top = p
 		}
 	}
 
@@ -2075,13 +2111,12 @@ func (g *Game) buildTopic() string {
 	}
 
 	parts = append(parts, fmt.Sprintf(iB+"%d"+iB+"/"+iB+"%d"+iB+" idling", online, total))
-	if top != nil {
-		parts = append(parts, fmt.Sprintf("Top: "+iB+cCyan+"%s"+iC+iB+" lvl "+iB+"%d"+iB+" "+iI+"%s"+iI, top.Name, top.Level, top.Class))
-	}
+
+	// Third part: active quest takes priority; fall back to last notable event;
+	// fall back to idle flavour when nobody is online.
 	if qp := g.questTopicPart(); qp != "" {
 		parts = append(parts, qp)
-	}
-	if g.lastEvent != "" {
+	} else if g.lastEvent != "" {
 		parts = append(parts, g.lastEvent)
 	} else if online == 0 {
 		parts = append(parts, idleFlavors[mathrand.Intn(len(idleFlavors))])
@@ -2103,13 +2138,15 @@ func (g *Game) questTopicPart() string {
 	return fmt.Sprintf("⚡ "+iI+"%s"+iI+" ["+iB+"%s"+iB+"]", g.quest.Desc, remaining)
 }
 
-// noteEvent records msg as the most recent notable event and refreshes the
-// channel topic. Must NOT be called while holding mu.
+// noteEvent records msg as the most recent notable event and immediately
+// pushes the topic (bypassing the rate limit). Use for events worth showing:
+// legendary drops, rare level-ups, quest starts/completions.
+// Must NOT be called while holding mu.
 func (g *Game) noteEvent(msg string) {
 	g.mu.Lock()
 	g.lastEvent = msg
 	g.mu.Unlock()
-	g.updateTopic()
+	g.pushTopic()
 }
 
 // classFocusSlot maps a free-form class name to one of the ten item slot
