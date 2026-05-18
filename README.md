@@ -8,14 +8,42 @@ A standalone IRC bot implementing the classic [IdleRPG](https://idlerpg.net/) ga
 
 Players register a character, pick a class and alignment, and gain levels simply by idling in the channel. Talking, changing nick, parting, quitting, or getting kicked adds penalty time. Characters battle each other on level-up, find items, dual-class, join guilds, go on quests, and roam a 500×500 map — all without lifting a finger.
 
-## Usage
+## Quickstart
+
+**Prerequisites**: Go 1.21 or later.
 
 ```bash
-go build
+git clone https://github.com/cstroie/idlerpg.git
+cd idlerpg
+make build
 ./idlerpg -server irc.libera.chat:6667 -nick GoIdle -channel "#idlerpg"
 ```
 
-All flags:
+The bot connects, joins the channel, and begins the game loop immediately. Player data is saved automatically to `idlerpg.json`; guild data to `guilds.json`.
+
+To test locally without a live IRC server, use dev mode (5× faster TTL, auto-logins existing channel members on connect, and events fire ~100× more often):
+
+```bash
+make dev
+```
+
+## Building & Testing
+
+```bash
+make build   # compile; binary stamped with today's date (yymmdd)
+make test    # run unit tests
+make run     # build and run with default flags
+make dev     # build and run in dev mode
+make clean   # remove the binary
+```
+
+You can override connection defaults without editing the Makefile:
+
+```bash
+make run SERVER=irc.example.org:6667 NICK=MyBot CHANNEL='#mygame'
+```
+
+## All Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -26,6 +54,7 @@ All flags:
 | `-channel` | `#idlerpg` | Game channel |
 | `-data` | `idlerpg.json` | Player data file (JSON, created automatically) |
 | `-guilds` | `guilds.json` | Guild data file (JSON, created automatically) |
+| `-nickserv` | _(none)_ | NickServ password — sends `IDENTIFY` on connect |
 | `-dev` | `false` | Dev mode: auto-login channel members on startup and speed up TTL by 5× |
 | `-rate-player` | `1.0` | Per-player event rate multiplier — scales random events and bot-battle challenges (2.0 = twice as often) |
 | `-rate-align` | `1.0` | Alignment event rate multiplier — scales good/evil daily events |
@@ -47,6 +76,9 @@ All flags:
 | `!top` | Top 5 players by level. |
 | `!items [nick]` | Full item loadout with unique names. |
 | `!pos [nick]` | Your grid coordinates and any co-located players. |
+| `!online` | List all currently online players. |
+| `!quest` | Show the active quest, questers, and time remaining. |
+| `!help` | Print the command reference in-channel. |
 
 ### Guilds
 
@@ -60,6 +92,8 @@ All flags:
 | `!gkick <nick>` | Remove a member (leader only). |
 | `!ginfo [name]` | Guild details: leader, members, levels, online count. |
 | `!gtop` | Top 5 guilds by combined member level. |
+
+> **Tip:** Use PM for all bot commands to avoid talk penalties.
 
 ## Game Mechanics
 
@@ -138,7 +172,7 @@ effectiveItemSum = itemSum + Items[focus(Class)] [+ Items[focus(Class2)]]
 
 ### Bot Battles
 
-Each online player has a ~1/day chance of challenging the bot.  
+Each online player has a ~1/day chance of challenging the bot.
 Bot power = 1 + highest `effectiveItemSum` across all registered players.
 
 - Win: −20% TTL
@@ -176,7 +210,7 @@ Each online player has a ~1/day chance of a random event:
 
 ~Once per day, when 4+ players at level 15+ are online, a quest begins. Four questers are chosen at random.
 
-**Time quest**: complete within 1–3 hours (stay online).  
+**Time quest**: complete within 1–3 hours (stay online).
 **Grid quest**: all questers must navigate to a specific map coordinate.
 
 - **Success**: each quester gets −25% TTL
@@ -190,7 +224,8 @@ When two players share a tile, there is a `1/len(online)` chance of a surprise b
 
 ### Persistence
 
-- Player data saved to JSON after every state change. Players start offline after a restart and re-login automatically on channel join.
+- Player data saved to JSON after every state change via atomic rename; file mode `0600`.
+- Players start offline after a restart and re-login automatically on channel join.
 - Guild data saved to a separate JSON file.
 - Item names, alignment, dual-class, and all item slots are persisted.
 
@@ -204,6 +239,14 @@ The bot maintains the channel topic with live game state:
 
 The topic updates on player join/part, every level-up, and after significant events (quests, battles, legendary drops, Hand of God).
 
+## Contributing
+
+Bug reports and pull requests are welcome. Please:
+
+1. Fork the repo and create a feature branch.
+2. Run `make test` before submitting — all tests must pass.
+3. Keep each PR focused; one change per PR.
+
 ## License
 
-MIT
+[GNU General Public License v3.0](LICENSE)
