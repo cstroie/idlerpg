@@ -2042,7 +2042,7 @@ func (g *Game) buildTopic() string {
 		}
 	}
 
-	parts := []string{iB + "⚔ Void Drift" + iB}
+	parts := []string{iB + "🌀 Void Drift" + iB}
 	if online == 0 && total == 0 {
 		return strings.Join(append(parts, idleFlavors[mathrand.Intn(len(idleFlavors))]), " | ")
 	}

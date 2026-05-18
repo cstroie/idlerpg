@@ -236,7 +236,7 @@ When two players share a tile, there is a `1/len(online)` chance of a surprise b
 The bot maintains the channel topic with live game state:
 
 ```
-⚔ Void Drift | 3/12 idling | Top: Costin lvl 42 Warrior | Grid mission: (312,88) — breach the Architect relay station [47m left] | ✦ Zara found Pale Architect Cortex — VOID-ETERNAL!
+🌀 Void Drift | 3/12 idling | Top: Costin lvl 42 Warrior | Grid mission: (312,88) — breach the Architect relay station [47m left] | ✦ Zara found Pale Architect Cortex — VOID-ETERNAL!
 ```
 
 The topic updates on player join/part, every level-up, and after significant events (quests, battles, legendary drops, Hand of God).

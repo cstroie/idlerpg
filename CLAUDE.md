@@ -159,7 +159,7 @@ Unique items have procedurally generated names (prefix + slot noun) stored in `I
 ### Channel Topic
 `Game.setTopic` (wired in `main.go`) is called by `updateTopic()` after:
 - Bot connects, player joins/parts/quits, every level-up, any tick with notable events.
-- Format: `⚔ Void Drift | N/M idling | Top: Nick lvl N Class | Quest/event info | last event`
+- Format: `🌀 Void Drift | N/M idling | Top: Nick lvl N Class | Quest/event info | last event`
 - `noteEvent(msg)` records a short string in `Game.lastEvent` and calls `updateTopic()`.
 - Must NOT be called while holding `mu`.
 
