@@ -190,8 +190,12 @@ func registerWHOHandlers(conn *irc.Conn, game *Game, botNick string, dev bool) {
 	})
 }
 
+// version is set at build time via -ldflags "-X main.version=YYMMDD".
+// It defaults to "dev" when built without the flag (e.g. go run).
+var version = "dev"
+
 func init() {
-	log.Println("IdleRPG bot starting")
+	log.Printf("IdleRPG bot starting (version %s)", version)
 }
 
 // dispatchCommand routes a parsed IRC command (fields[0] is the command token)
