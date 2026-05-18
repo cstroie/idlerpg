@@ -441,29 +441,81 @@ var forsakenMsgs = []string{
 
 // questDescs are the mission objectives attached to quests.
 var questDescs = []string{
-	"breach the Architect relay station before it completes its transmission",
+	// Rescue & extraction
 	"extract the surviving crew from the Drift-touched colony on Kerath IV",
-	"destroy the Null-seed before it consumes the station's reactor core",
-	"decode the pre-collapse star charts buried in the dead ship's memory banks",
-	"sever the Signal tether anchoring the Entity to inhabited space",
-	"retrieve the last intact Architect core from the ruins of the Pale Spire",
-	"purge the Drift infestation spreading through the lower decks of the Vantareth",
-	"recover the black-box recorder from the vessel that crossed the Veil and did not return",
-	"disable the resonance beacon drawing Entities toward the inhabited systems",
 	"escort the last xenobiologist off the compromised research station before it falls",
-	"trace the origin of the ghost-signal looping endlessly through the relay network",
-	"prevent the Pale Choir's convergence at the coordinates marked only as The Wound",
-	"silence the automated defence grid protecting the tomb of the last Architect",
 	"reach the Drift-stranded ship before the Null-tide rises and takes it completely",
-	"seal the rift the Entity tore through local space before the cold gets in",
-	"intercept the rogue Architect construct before it reaches the inhabited ring",
+	"pull the trapped survey team from the exclusion zone before the Entity localises them",
+	"evacuate the listening post at Fracture Station before its orbit decays into the Null",
+	"recover the three cryo-sleepers from the derelict generation ship before it fragments",
+	"retrieve the undercover operative from deep inside the Architect tomb-complex",
+
+	// Retrieval & data
+	"decode the pre-collapse star charts buried in the dead ship's memory banks",
+	"recover the black-box recorder from the vessel that crossed the Veil and did not return",
+	"retrieve the last intact Architect core from the ruins of the Pale Spire",
 	"retrieve Pale Architect schematics from the derelict station in the exclusion zone",
-	"shut down the Null-broadcast before it propagates beyond the dead system",
-	"stabilise the collapsing Drift corridor before the next transit window closes",
-	"destroy the Entity-seed germinating in the abandoned colony's deep foundations",
-	"map the Veil-breach coordinates before they shift again and are lost",
-	"hold the perimeter at the Fracture Point until evacuation is complete",
 	"recover the corrupted Architect AI core before the Entity absorbs it",
+	"download the Null-cartography files from the station before it is swallowed",
+	"obtain the census records of the last inhabited world before they are overwritten",
+	"salvage the navigation AI from the hulk drifting into the Choir's resonance zone",
+	"copy the Architect's final theorem from the monument before the Drift erases it",
+	"extract the memory lattice from the frozen researcher who walked into the Veil alone",
+
+	// Destruction & denial
+	"destroy the Null-seed before it consumes the station's reactor core",
+	"destroy the Entity-seed germinating in the abandoned colony's deep foundations",
+	"shut down the Null-broadcast before it propagates beyond the dead system",
+	"silence the automated defence grid protecting the tomb of the last Architect",
+	"breach the Architect relay station before it completes its transmission",
+	"collapse the Veil-rift before the Choir uses it as a door",
+	"detonate the resonance amplifier at the heart of the Pale Choir's congregation",
+	"destroy the bridge the Entity has grown between two inhabited systems",
+	"overload the Null-forge before it finishes assembling what it is building",
+	"burn the archive that teaches the Entity how to dream",
+
+	// Containment & sealing
+	"sever the Signal tether anchoring the Entity to inhabited space",
+	"seal the rift the Entity tore through local space before the cold gets in",
+	"disable the resonance beacon drawing Entities toward the inhabited systems",
+	"stabilise the collapsing Drift corridor before the next transit window closes",
+	"hold the perimeter at the Fracture Point until evacuation is complete",
+	"contain the Drift-bloom spreading outward from the wreck of the Obsidian Wake",
+	"reinforce the boundary wards at the edge of the Exclusion Ring before the next tide",
+	"anchor the waystation before Drift-shear tears it from its coordinates permanently",
+	"close the wound left by the failed gate experiment before something else finds it",
+	"quarantine the colony signal before the Choir follows it home",
+
+	// Investigation & mapping
+	"trace the origin of the ghost-signal looping endlessly through the relay network",
+	"map the Veil-breach coordinates before they shift again and are lost",
+	"prevent the Pale Choir's convergence at the coordinates marked only as The Wound",
+	"determine what destroyed the survey fleet at the Kerath Margin and leave proof",
+	"locate the source of the countdown signal broadcasting from uninhabited space",
+	"identify which Architect is still running and what it is building toward",
+	"chart the new Drift-corridor before it collapses and its route is lost forever",
+	"document the Entity's feeding pattern before the last witness loses coherence",
+	"investigate the station that went dark three hours after broadcasting a single word",
+
+	// Intercept & pursuit
+	"intercept the rogue Architect construct before it reaches the inhabited ring",
+	"intercept the Null-courier before it delivers its cargo to the Choir's inner court",
+	"pursue the ghost-ship through the Drift before it carries its passengers beyond reach",
+	"catch the deserter who stole the Architect codex before they sell it to the Null",
+	"overtake the autonomous Architect weapon before it reaches the civilian corridor",
+	"intercept the Pale Choir's convergence fleet before it achieves formation",
+
+	// Esoteric & strange
+	"purge the Drift infestation spreading through the lower decks of the Vantareth",
+	"intercept the rogue Architect construct before it reaches the inhabited ring",
+	"recite the Null-breaking litany at the three relay towers before the Choir harmonises",
+	"carry the last functioning Architect seed-mind to the coordinates it has requested",
+	"stand witness at the Veil's edge while the last known Architect completes its death",
+	"convince the Null-sovereign to look away from the inhabited systems for one hour",
+	"deliver the silence-device to the heart of the Choir's song before the next verse",
+	"feed the correct sequence into the Architect gate before the window closes forever",
+	"answer the question the dead god-machine has been asking for three hundred years",
+	"guide the last ghost-ship home before its crew forget what home means",
 }
 
 // Quest eligibility thresholds.
