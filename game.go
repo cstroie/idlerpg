@@ -238,16 +238,17 @@ var itemGodsendMsgs = []string{
 
 // foundItemMsgs are used when a player stumbles upon a random item.
 // Args: (playerName, slotName, itemLevel, equippedVerb, itemTotal).
+// foundItemMsgs args: (playerName, article, slotName, itemLevel, equippedVerb, itemTotal).
 var foundItemMsgs = []string{
-	"%s stumbles upon a %s of level %d in the wreckage of a pre-collapse freighter %s. [item total: %d]",
-	"%s pulls a %s of level %d from a derelict escape pod %s. [item total: %d]",
-	"%s finds a %s of level %d drifting in a debris field %s. [item total: %d]",
-	"%s uncovers a %s of level %d half-buried in solidified void-foam %s. [item total: %d]",
-	"%s pries a %s of level %d loose from a dead Architect construct %s. [item total: %d]",
-	"%s intercepts a supply cache and claims a %s of level %d from it %s. [item total: %d]",
-	"%s extracts a %s of level %d from a sealed Null-crate %s. [item total: %d]",
-	"%s trades a ghost-signal recording for a %s of level %d %s. [item total: %d]",
-	"%s recovers a %s of level %d from a pilot who no longer needs it %s. [item total: %d]",
+	"%s stumbles upon %s %s of level %d in the wreckage of a pre-collapse freighter %s. [item total: %d]",
+	"%s pulls %s %s of level %d from a derelict escape pod %s. [item total: %d]",
+	"%s finds %s %s of level %d drifting in a debris field %s. [item total: %d]",
+	"%s uncovers %s %s of level %d half-buried in solidified void-foam %s. [item total: %d]",
+	"%s pries %s %s of level %d loose from a dead Architect construct %s. [item total: %d]",
+	"%s intercepts a supply cache and claims %s %s of level %d from it %s. [item total: %d]",
+	"%s extracts %s %s of level %d from a sealed Null-crate %s. [item total: %d]",
+	"%s trades a ghost-signal recording for %s %s of level %d %s. [item total: %d]",
+	"%s recovers %s %s of level %d from a pilot who no longer needs it %s. [item total: %d]",
 }
 
 // handOfGodMsgs[0] = hurt templates, [1] = help templates. Args: (nick, pct).
@@ -1449,7 +1450,7 @@ func (g *Game) doLevelUp(p *Player) {
 	if itemRarity != rarityNormal {
 		label = " " + rarityLabel(itemRarity)
 	}
-	g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%d"+iB+". Next phase: "+iB+"%s"+iB+". As a level-up reward, they find a "+iI+"%s"+iI+" of level "+iB+"%d"+iB+"%s%s [item total: "+iB+"%d"+iB+"].",
+	g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%d"+iB+". Next phase: "+iB+"%s"+iB+". As a level-up reward, they find "+articleFor(itemDesc)+" "+iI+"%s"+iI+" of level "+iB+"%d"+iB+"%s%s [item total: "+iB+"%d"+iB+"].",
 		name, level, fmtDuration(ttl), itemDesc, itemLevel, equipped, label, isum))
 
 	switch itemRarity {
@@ -1681,8 +1682,9 @@ func (g *Game) randomEvent(p *Player) string {
 			p.Items[slot] = found
 			equipped = "and equips it"
 		}
+		slotName := itemSlots[slot]
 		return fmt.Sprintf(foundItemMsgs[mathrand.Intn(len(foundItemMsgs))],
-			p.Name, itemSlots[slot], found, equipped, p.itemSum())
+			p.Name, articleFor(slotName), slotName, found, equipped, p.itemSum())
 	}
 }
 
@@ -2294,6 +2296,14 @@ func effectiveItemSum(p *Player) int {
 
 // fmtDuration formats a duration given in seconds as a human-readable string
 // in the form "Xh MM m SS s", "MM m SS s", or "SS s".
+// articleFor returns "an" if word starts with a vowel, "a" otherwise.
+func articleFor(word string) string {
+	if len(word) > 0 && strings.ContainsRune("aeiouAEIOU", rune(word[0])) {
+		return "an"
+	}
+	return "a"
+}
+
 func fmtDuration(secs int64) string {
 	if secs <= 0 {
 		return "0s"
