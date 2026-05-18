@@ -3,18 +3,22 @@ CHANNEL ?= \#voidrift
 NICK    ?= VoidKeeper
 SERVER  ?= irc.libera.chat:6667
 VERSION := $(shell date +%y%m%d)
-LDFLAGS := -ldflags "-X main.version=$(VERSION) -extldflags=-static"
 
-# CGO_ENABLED=0 produces a fully static binary with no libc dependency,
-# which is required for chroot confinement (no shared libs inside the chroot).
-export CGO_ENABLED=0
+LDFLAGS_STATIC  := -ldflags "-X main.version=$(VERSION) -extldflags=-static"
+LDFLAGS_DYNAMIC := -ldflags "-X main.version=$(VERSION)"
 
-.PHONY: all build test clean run dev
+.PHONY: all build build-static build-dynamic test clean run dev
 
 all: build
 
-build:
-	go build $(LDFLAGS) -o $(BINARY) .
+# Default build: static (no libc dependency, suitable for chroot confinement).
+build: build-static
+
+build-static:
+	CGO_ENABLED=0 go build $(LDFLAGS_STATIC) -o $(BINARY) .
+
+build-dynamic:
+	CGO_ENABLED=1 go build $(LDFLAGS_DYNAMIC) -o $(BINARY) .
 
 test:
 	go test ./...
