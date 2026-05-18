@@ -1,3 +1,9 @@
+// This file implements the guild system: data types, player-facing commands,
+// guild battle logic, and JSON persistence.
+//
+// Guilds are stored in Game.guilds keyed by normalised lowercase name
+// (whitespace collapsed). Member and leader fields use lowercase nicks to
+// match the key used in Game.players.
 package main
 
 import (
@@ -10,15 +16,17 @@ import (
 	"strings"
 )
 
-// Guild represents a player-created group.
+// Guild represents a player-created group. All string fields that hold nicks
+// use lowercase nicks to match the keys in Game.players.
 type Guild struct {
-	Name    string
-	Leader  string   // lowercase nick
-	Members []string // lowercase nicks
-	Invites []string // pending invites (lowercase nicks)
+	Name    string   // display name, case-preserved
+	Leader  string   // lowercase nick of the current leader
+	Members []string // lowercase nicks of all members (including the leader)
+	Invites []string // lowercase nicks with a pending invitation
 }
 
-// totalLevel returns the sum of levels for all guild members found in the player map.
+// totalLevel returns the sum of levels for all guild members found in players.
+// Missing players (e.g. deleted accounts) are silently skipped.
 // Must be called with mu held.
 func (guild *Guild) totalLevel(players map[string]*Player) int {
 	total := 0
@@ -30,7 +38,7 @@ func (guild *Guild) totalLevel(players map[string]*Player) int {
 	return total
 }
 
-// hasMember reports whether nick (lowercase) is a member.
+// hasMember reports whether nick (lowercase) is currently a member.
 func (guild *Guild) hasMember(nick string) bool {
 	for _, m := range guild.Members {
 		if m == nick {
@@ -40,7 +48,7 @@ func (guild *Guild) hasMember(nick string) bool {
 	return false
 }
 
-// hasInvite reports whether nick (lowercase) has a pending invite.
+// hasInvite reports whether nick (lowercase) has a pending invitation.
 func (guild *Guild) hasInvite(nick string) bool {
 	for _, inv := range guild.Invites {
 		if inv == nick {
@@ -50,7 +58,7 @@ func (guild *Guild) hasInvite(nick string) bool {
 	return false
 }
 
-// removeMember removes nick (lowercase) from Members. Does not save.
+// removeMember removes nick (lowercase) from Members in-place. Does not save.
 func (guild *Guild) removeMember(nick string) {
 	out := guild.Members[:0]
 	for _, m := range guild.Members {
@@ -61,7 +69,7 @@ func (guild *Guild) removeMember(nick string) {
 	guild.Members = out
 }
 
-// removeInvite removes nick (lowercase) from Invites. Does not save.
+// removeInvite removes nick (lowercase) from Invites in-place. Does not save.
 func (guild *Guild) removeInvite(nick string) {
 	out := guild.Invites[:0]
 	for _, inv := range guild.Invites {
@@ -76,12 +84,17 @@ func (guild *Guild) removeInvite(nick string) {
 // Guild commands
 // ---------------------------------------------------------------------------
 
-// CmdGCreate creates a new guild. The caller becomes the sole member and leader.
+// CmdGCreate creates a new guild with the caller as sole member and leader.
+// The caller must be online, not already in a guild, and the name must be
+// unique. Founding costs a p100 penalty. The guild name is stored as provided
+// (after TrimSpace) but looked up case-insensitively with whitespace collapsed.
 func (g *Game) CmdGCreate(src, name string) string {
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 32 {
 		return "Usage: !gcreate <name> (max 32 characters)"
 	}
+	// Normalise: lowercase + collapse internal whitespace. This key is used
+	// for all guild map lookups throughout the codebase.
 	key := strings.ToLower(strings.Join(strings.Fields(name), " "))
 
 	g.mu.Lock()
@@ -105,7 +118,6 @@ func (g *Game) CmdGCreate(src, name string) string {
 		Members: []string{nick},
 	}
 	g.guilds[key] = guild
-	// Founding a guild costs time.
 	g.applyPenalty(p, 100)
 	displayName := p.Nick
 	g.mu.Unlock()
@@ -113,7 +125,9 @@ func (g *Game) CmdGCreate(src, name string) string {
 	return fmt.Sprintf("%s has founded the guild %q! Use !ginvite <nick> to recruit members.", displayName, name)
 }
 
-// CmdGInvite invites a registered player to the caller's guild.
+// CmdGInvite invites a registered player to the caller's guild. Only the
+// current leader may invite. The target must not already be in a guild and
+// must not already have a pending invitation.
 func (g *Game) CmdGInvite(src, targetNick string) string {
 	g.mu.Lock()
 	p := g.findByAddr(src)
@@ -154,7 +168,8 @@ func (g *Game) CmdGInvite(src, targetNick string) string {
 	return fmt.Sprintf("%s has been invited to %q by %s. They can type !gaccept to join.", targetDisplayNick, guildName, inviterNick)
 }
 
-// CmdGAccept accepts a pending guild invitation.
+// CmdGAccept accepts the first pending guild invitation found for the caller.
+// The caller must not already be in a guild.
 func (g *Game) CmdGAccept(src string) string {
 	g.mu.Lock()
 	p := g.findByAddr(src)
@@ -167,7 +182,6 @@ func (g *Game) CmdGAccept(src string) string {
 		g.mu.Unlock()
 		return "You are already in a guild."
 	}
-	// Find the guild that invited this player.
 	var invGuild *Guild
 	for _, guild := range g.guilds {
 		if guild.hasInvite(nick) {
@@ -188,7 +202,7 @@ func (g *Game) CmdGAccept(src string) string {
 	return fmt.Sprintf("%s has joined the guild %q!", displayNick, guildName)
 }
 
-// CmdGDecline declines a pending guild invitation.
+// CmdGDecline declines the first pending guild invitation found for the caller.
 func (g *Game) CmdGDecline(src string) string {
 	g.mu.Lock()
 	p := g.findByAddr(src)
@@ -216,8 +230,9 @@ func (g *Game) CmdGDecline(src string) string {
 	return fmt.Sprintf("%s has declined the invitation to %q.", displayNick, guildName)
 }
 
-// CmdGLeave removes the caller from their guild. Disbands if last member; transfers
-// leadership automatically if the caller is the leader.
+// CmdGLeave removes the caller from their guild. If they are the leader,
+// leadership is transferred to the next member in the list. If they are the
+// last member, the guild is disbanded entirely.
 func (g *Game) CmdGLeave(src string) string {
 	g.mu.Lock()
 	p := g.findByAddr(src)
@@ -232,6 +247,8 @@ func (g *Game) CmdGLeave(src string) string {
 		return "You are not in a guild."
 	}
 	guildName := guild.Name
+	// Use the same key normalisation as CmdGCreate to ensure the delete hits
+	// the correct map entry even when the name contains internal whitespace.
 	guildKey := strings.ToLower(strings.Join(strings.Fields(guildName), " "))
 	displayNick := p.Nick
 
@@ -254,7 +271,8 @@ func (g *Game) CmdGLeave(src string) string {
 	return msg
 }
 
-// CmdGKick removes a member from the guild. Only the leader can kick.
+// CmdGKick removes targetNick from the caller's guild. Only the leader may
+// kick; the leader cannot kick themselves (use !gleave instead).
 func (g *Game) CmdGKick(src, targetNick string) string {
 	g.mu.Lock()
 	p := g.findByAddr(src)
@@ -288,7 +306,9 @@ func (g *Game) CmdGKick(src, targetNick string) string {
 	return fmt.Sprintf("%s has been kicked from %q.", targetNick, guildName)
 }
 
-// CmdGInfo shows details about a guild. If name is empty, shows the caller's guild.
+// CmdGInfo shows a summary of the requested guild: leader, member list with
+// levels, online count, and total combined level. If name is empty, shows the
+// caller's own guild.
 func (g *Game) CmdGInfo(src, name string) string {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -320,7 +340,7 @@ func (g *Game) CmdGInfo(src, name string) string {
 		}
 		marker := ""
 		if nick == guild.Leader {
-			marker = "*"
+			marker = "*" // asterisk marks the leader in the member list
 		}
 		if p.Online {
 			online++
@@ -332,7 +352,7 @@ func (g *Game) CmdGInfo(src, name string) string {
 		strings.Join(memberInfo, ", "), total)
 }
 
-// CmdGTop returns the top 5 guilds by total member level.
+// CmdGTop returns the top 5 guilds ranked by total member level.
 func (g *Game) CmdGTop() string {
 	g.mu.Lock()
 	type entry struct {
@@ -364,7 +384,8 @@ func (g *Game) CmdGTop() string {
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-// playerGuild returns the guild a nick (lowercase) belongs to, or nil. Must be called with mu held.
+// playerGuild returns the guild that nick (lowercase) belongs to, or nil.
+// Must be called with mu held.
 func (g *Game) playerGuild(nick string) *Guild {
 	for _, guild := range g.guilds {
 		if guild.hasMember(nick) {
@@ -374,7 +395,8 @@ func (g *Game) playerGuild(nick string) *Guild {
 	return nil
 }
 
-// onlineGuildMembers returns online Player pointers for a guild. Must be called with mu held.
+// onlineGuildMembers returns Player pointers for all online members of guild.
+// Must be called with mu held.
 func (g *Game) onlineGuildMembers(guild *Guild) []*Player {
 	out := make([]*Player, 0, len(guild.Members))
 	for _, nick := range guild.Members {
@@ -385,7 +407,10 @@ func (g *Game) onlineGuildMembers(guild *Guild) []*Player {
 	return out
 }
 
-// guildBattle picks two guilds with 2+ online members and pits them against each other.
+// guildBattle selects two guilds that each have at least two online members
+// and runs a fight between them. Each guild's power is the sum of
+// effectiveItemSum across its online members. Winners receive −20% TTL;
+// losers receive +15% TTL. Returns nil if fewer than two eligible guilds exist.
 // Must be called with mu held.
 func (g *Game) guildBattle() []string {
 	type candidate struct {
@@ -466,6 +491,7 @@ func (g *Game) guildBattle() []string {
 // Persistence
 // ---------------------------------------------------------------------------
 
+// saveGuilds marshals the guild map to JSON and writes it atomically.
 func (g *Game) saveGuilds() {
 	if g.guildsFile == "" {
 		return
@@ -482,6 +508,7 @@ func (g *Game) saveGuilds() {
 	}
 }
 
+// loadGuilds reads guild data from disk. Missing files are silently ignored.
 func (g *Game) loadGuilds() {
 	if g.guildsFile == "" {
 		return

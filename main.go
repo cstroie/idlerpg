@@ -1,3 +1,8 @@
+// Package main is the entry point for GoIdle, a standalone IdleRPG IRC bot.
+//
+// It wires the IRC connection (via fluffle/goirc) to the game engine defined in
+// game.go and guild.go. All game logic lives in [Game]; this file is responsible
+// only for IRC event dispatch and the reconnect loop.
 package main
 
 import (
@@ -10,6 +15,8 @@ import (
 	irc "github.com/fluffle/goirc/client"
 )
 
+// main parses flags, constructs the IRC client and Game, registers all event
+// handlers, then runs the reconnect loop forever.
 func main() {
 	server := flag.String("server", "irc.libera.chat:6667", "IRC server host:port")
 	nick := flag.String("nick", "GoIdle", "Bot nick")
@@ -26,9 +33,11 @@ func main() {
 	cfg.SSL = *ssl
 	cfg.Server = *server
 	cfg.Pass = *password
+	// Append "_" when the preferred nick is already taken rather than failing.
 	cfg.NewNick = func(n string) string { return n + "_" }
 	conn := irc.Client(cfg)
 
+	// say sends a message to the game channel and logs it for debugging.
 	say := func(msg string) {
 		log.Printf(">> %s", msg)
 		conn.Privmsg(*channel, msg)
@@ -44,6 +53,7 @@ func main() {
 	connected := make(chan bool)
 	registerHandlers(conn, game, say, connected, *channel, *nick, *nickservPass, *dev)
 
+	// Reconnect loop: on disconnect wait 10 s then try again indefinitely.
 	for {
 		log.Println("Connecting to", *server)
 		if err := conn.Connect(); err != nil {
@@ -61,6 +71,9 @@ func main() {
 	}
 }
 
+// registerHandlers attaches all IRC event handlers to conn. It captures game,
+// say, and the configuration values it needs via closure. The connected channel
+// receives false whenever the connection drops so the reconnect loop can fire.
 func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected chan bool,
 	channel, botNick, nickservPass string, dev bool) {
 
@@ -71,6 +84,8 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 		}
 		c.Join(channel)
 		game.start()
+		// In dev mode, issue WHO immediately so existing channel members are
+		// auto-logged in without having to re-join.
 		if dev {
 			c.Who(channel)
 		}
@@ -79,6 +94,7 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 	registerWHOHandlers(conn, game, botNick, dev)
 
 	conn.HandleFunc("JOIN", func(c *irc.Conn, line *irc.Line) {
+		// Ignore the bot's own JOIN confirmation.
 		if extractNick(line.Src) == botNick {
 			return
 		}
@@ -93,6 +109,7 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 			return
 		}
 		if line.Args[1] == botNick {
+			// Rejoin immediately if the bot itself was kicked.
 			c.Join(channel)
 			return
 		}
@@ -108,11 +125,15 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 		if len(fields) == 0 {
 			return
 		}
+		// Default reply target is the channel; PMs reply to the sender's nick.
 		replyTo := ch
 		if ch == botNick {
 			replyTo = extractNick(src)
 		}
 		if ch == channel {
+			// Penalise the player for speaking (commands included — talking is
+			// not idling). Then nudge them to use PM for commands so the channel
+			// stays clean and they avoid the penalty going forward.
 			game.OnPrivmsg(src, text)
 			if strings.HasPrefix(text, "!") {
 				replyTo = extractNick(src)
@@ -126,11 +147,16 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 	conn.HandleFunc("disconnected", func(c *irc.Conn, line *irc.Line) { connected <- false })
 }
 
-// registerWHOHandlers wires up the WHO reply (352) and end-of-WHO (315) handlers
-// used in dev mode to auto-login existing channel members.
+// registerWHOHandlers wires up the WHO reply (numeric 352) and end-of-WHO
+// (numeric 315) handlers used in dev mode to auto-login all players that are
+// already in the channel when the bot connects.
+//
+// whoQueue accumulates nick!user@host strings from 352 replies and is flushed
+// into [Game.OnJoin] calls when 315 signals the end of the WHO list.
 func registerWHOHandlers(conn *irc.Conn, game *Game, botNick string, dev bool) {
 	var whoQueue []string
 	conn.HandleFunc("352", func(c *irc.Conn, line *irc.Line) {
+		// Args layout: [botnick, #channel, user, host, server, nick, flags, ...]
 		if !dev || len(line.Args) < 6 {
 			return
 		}
@@ -157,7 +183,9 @@ func init() {
 	log.Println("IdleRPG bot starting")
 }
 
-// dispatchCommand routes a parsed IRC command to the appropriate Game method.
+// dispatchCommand routes a parsed IRC command (fields[0] is the command token)
+// to the appropriate [Game] method. say broadcasts to the channel; reply sends
+// to the originating user (either a channel or a PM, resolved by the caller).
 func dispatchCommand(src string, fields []string, g *Game, say, reply func(string)) {
 	switch fields[0] {
 	case "!register":
@@ -191,6 +219,7 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 	}
 }
 
+// helpText is the single-line command reference sent in response to !help.
 const helpText = "IdleRPG commands: " +
 	"!register <nick> <class> <pass> | " +
 	"!login <pass> | !logout | " +
@@ -200,6 +229,8 @@ const helpText = "IdleRPG commands: " +
 	"!gcreate <name> | !ginvite <nick> | !gaccept | !gdecline | " +
 	"!gleave | !gkick <nick> | !ginfo [name] | !gtop"
 
+// dispatchRegister handles !register <nick> <class…> <pass>.
+// The class may span multiple words; the password is always the final token.
 func dispatchRegister(src string, fields []string, g *Game, say, reply func(string)) {
 	if len(fields) < 4 {
 		reply("Usage: !register <nick> <class> <pass>")
@@ -209,6 +240,8 @@ func dispatchRegister(src string, fields []string, g *Game, say, reply func(stri
 	say(g.CmdRegister(src, fields[1], class, fields[len(fields)-1]))
 }
 
+// dispatchLogin handles !login <pass>, replying privately so the outcome
+// (including "Wrong password.") is never visible to the channel.
 func dispatchLogin(src string, fields []string, g *Game, reply func(string)) {
 	if len(fields) < 2 {
 		reply("Usage: !login <pass>")
@@ -217,6 +250,8 @@ func dispatchLogin(src string, fields []string, g *Game, reply func(string)) {
 	reply(g.CmdLogin(src, fields[1]))
 }
 
+// dispatchDualClass handles !dualclass <class>, where the class name may be
+// multiple words joined from all remaining fields.
 func dispatchDualClass(src string, fields []string, g *Game, reply func(string)) {
 	if len(fields) < 2 {
 		reply("Usage: !dualclass <class>")
@@ -225,6 +260,7 @@ func dispatchDualClass(src string, fields []string, g *Game, reply func(string))
 	reply(g.CmdDualClass(src, strings.Join(fields[1:], " ")))
 }
 
+// dispatchAlign handles !align <good|neutral|evil>.
 func dispatchAlign(src string, fields []string, g *Game, reply func(string)) {
 	if len(fields) < 2 {
 		reply("Usage: !align <good|neutral|evil>")
@@ -233,6 +269,7 @@ func dispatchAlign(src string, fields []string, g *Game, reply func(string)) {
 	reply(g.CmdAlign(src, fields[1]))
 }
 
+// dispatchGuildCommand handles all !g* guild commands.
 func dispatchGuildCommand(src string, fields []string, g *Game, say, reply func(string)) {
 	switch fields[0] {
 	case "!gcreate":
@@ -266,7 +303,8 @@ func dispatchGuildCommand(src string, fields []string, g *Game, say, reply func(
 	}
 }
 
-// optArg returns fields[i] if it exists, otherwise "".
+// optArg returns fields[i] when the slice is long enough, otherwise "".
+// Used for optional command arguments such as the target nick in !status [nick].
 func optArg(fields []string, i int) string {
 	if i < len(fields) {
 		return fields[i]

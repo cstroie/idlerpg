@@ -1,3 +1,5 @@
+// This file implements the unique/legendary item system: rarity tiers, drop
+// probability, procedural name generation, and the !items command.
 package main
 
 import (
@@ -7,7 +9,8 @@ import (
 	"strings"
 )
 
-// Item rarity tiers.
+// Item rarity tier identifiers. rarityNormal is the empty string so that an
+// item with no special name can be zero-valued without an extra boolean field.
 const (
 	rarityNormal    = ""
 	rarityUncommon  = "Uncommon"
@@ -15,20 +18,23 @@ const (
 	rarityLegendary = "Legendary"
 )
 
-// Unlock levels for each rarity tier.
+// Minimum player levels required to receive drops of each rarity tier.
+// Below the threshold the rarity is simply skipped in the roll sequence.
 const (
 	uncommonMinLevel  = 25
 	rareMinLevel      = 35
 	legendaryMinLevel = 50
 )
 
-// Drop chances per level-up (checked in descending rarity order).
+// Drop chance denominators (1-in-N per level-up). Checked in descending rarity
+// order so a single level-up can produce at most one non-normal item.
 const (
-	legendaryChance = 200 // 1 in 200  (0.5%)
-	rareChance      = 50  // 1 in 50   (2%)
-	uncommonChance  = 20  // 1 in 20   (5%)
+	legendaryChance = 200 // 0.5%
+	rareChance      = 50  // 2.0%
+	uncommonChance  = 20  // 5.0%
 )
 
+// Prefix word lists for each rarity tier, used by generateItemName.
 var uncommonPrefixes = []string{
 	"Polished", "Superior", "Enchanted", "Gleaming", "Sturdy",
 	"Refined", "Tempered", "Honed", "Fortified", "Keen",
@@ -44,6 +50,8 @@ var legendaryPrefixes = []string{
 	"Celestial", "Abyssal", "Primordial", "Transcendent", "Undying",
 }
 
+// slotNouns maps each item slot name to a list of flavourful nouns used as the
+// second word in a generated item name (e.g. "Ethereal Aegis").
 var slotNouns = map[string][]string{
 	"ring":     {"Ring", "Band", "Loop", "Signet", "Coil"},
 	"amulet":   {"Amulet", "Pendant", "Talisman", "Medallion", "Locket"},
@@ -57,6 +65,9 @@ var slotNouns = map[string][]string{
 	"boots":    {"Treads", "Striders", "Sabatons", "Steps", "Walkers"},
 }
 
+// generateItemName produces a two-word procedural name ("Prefix Noun") for a
+// non-normal item. The prefix is drawn from the rarity's word list and the noun
+// from the slot's noun list, both chosen uniformly at random.
 func generateItemName(rarity, slot string) string {
 	var prefixes []string
 	switch rarity {
@@ -73,8 +84,10 @@ func generateItemName(rarity, slot string) string {
 	return prefix + " " + noun
 }
 
-// weightedItemLevel picks a level in [min, max] with probability proportional
-// to 1/(1.4^k) where k = level-min, making higher levels exponentially rarer.
+// weightedItemLevel picks an item level in [min, max] using a geometric
+// distribution with base 1.4. Level min has weight 1, min+1 has weight 1/1.4,
+// min+2 has weight 1/1.4², and so on — making higher levels exponentially
+// rarer within the allowed range.
 func weightedItemLevel(min, max int) int {
 	if min >= max {
 		return min
@@ -98,14 +111,18 @@ func weightedItemLevel(min, max int) int {
 	return min
 }
 
-// rollItemDrop determines a level-up item drop for the player.
-// Returns slot index, item level, unique name (empty for normal), and rarity string.
-// Must be called with the player's level already incremented.
+// rollItemDrop determines the item granted on a level-up. Rarities are checked
+// in descending order (Legendary → Rare → Uncommon → Normal); the first roll
+// that succeeds sets the rarity and level range. The player's level must already
+// have been incremented before calling this function.
+//
+// Returns: slot index (0–9), item level, unique name (empty for Normal), rarity.
 func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 	slot = mathrand.Intn(10)
 	slotName := itemSlots[slot]
 
 	if p.Level >= legendaryMinLevel && mathrand.Intn(legendaryChance) == 0 {
+		// Legendary: item level is 3–5× player level, minimum 50–100.
 		min := int(math.Max(float64(p.Level)*3, 50))
 		max := int(math.Max(float64(p.Level)*5, 100))
 		if max <= min {
@@ -117,6 +134,7 @@ func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 	}
 
 	if p.Level >= rareMinLevel && mathrand.Intn(rareChance) == 0 {
+		// Rare: item level is 2–3× player level.
 		min := p.Level*2 + 1
 		max := p.Level * 3
 		if max <= min {
@@ -128,6 +146,7 @@ func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 	}
 
 	if p.Level >= uncommonMinLevel && mathrand.Intn(uncommonChance) == 0 {
+		// Uncommon: item level is 1.5–2× player level.
 		min := int(float64(p.Level)*1.5) + 1
 		max := p.Level * 2
 		if max <= min {
@@ -138,13 +157,14 @@ func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 		return slot, level, name, rarityUncommon
 	}
 
-	// Normal drop: level 1 to 1.5× player level, weighted toward lower values.
+	// Normal drop: item level is 1 to 1.5× player level, weighted toward lower values.
 	maxNormal := int(math.Max(float64(p.Level)*1.5, 1))
 	level = weightedItemLevel(1, maxNormal)
 	return slot, level, "", rarityNormal
 }
 
-// rarityLabel returns an IRC-friendly label for announcing unique drops.
+// rarityLabel returns the IRC channel announcement label for a non-normal drop.
+// Returns "" for normal items so callers can append it unconditionally.
 func rarityLabel(rarity string) string {
 	switch rarity {
 	case rarityUncommon:
@@ -157,7 +177,9 @@ func rarityLabel(rarity string) string {
 	return ""
 }
 
-// CmdItems shows a player's full item loadout with unique names where applicable.
+// CmdItems returns the full item loadout for the target player, including
+// unique names where present. If targetNick is empty, reports on the calling
+// player.
 func (g *Game) CmdItems(src, targetNick string) string {
 	if targetNick == "" {
 		targetNick = extractNick(src)

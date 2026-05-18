@@ -1,3 +1,18 @@
+// Package main implements GoIdle, a standalone IdleRPG IRC bot written in Go.
+//
+// This file contains the core game engine: player and quest data types, the
+// per-second tick loop, all battle mechanics, random events, the grid/map
+// system, persistence, and every player-facing command handler.
+//
+// # Concurrency model
+//
+// A single [sync.Mutex] (Game.mu) protects all mutable state. The tick
+// goroutine holds mu for the computation phase, then releases it before
+// sending IRC messages. Command handlers follow the same pattern: acquire mu,
+// mutate state and collect messages, release mu, then send. Functions annotated
+// "Must be called with mu held" must never call say/setTopic or acquire mu
+// again (deadlock). Functions annotated "Must NOT be called while holding mu"
+// call updateTopic or say and must therefore be invoked after releasing the lock.
 package main
 
 import (
@@ -18,11 +33,14 @@ import (
 	"time"
 )
 
+// itemSlots names the ten equipment slots in display order. The slice index is
+// used everywhere items are stored (Player.Items, Player.ItemNames).
 var itemSlots = [10]string{
 	"ring", "amulet", "charm", "weapon", "helm",
 	"tunic", "gloves", "leggings", "shield", "boots",
 }
 
+// Random-event message templates. Each uses fmt.Sprintf with (nick, pct) args.
 var calamityMsgs = []string{
 	"%s is forsaken by their deity! TTL increased by %d%%.",
 	"A wandering curse latches onto %s. TTL increased by %d%%.",
@@ -41,6 +59,7 @@ var godsendMsgs = []string{
 	"%s receives a blessing from the heavens! TTL reduced by %d%%.",
 }
 
+// Item-event templates use (nick, slotName, pct) args.
 var itemCalamityMsgs = []string{
 	"%s's %s was damaged in an ambush! Item level reduced by %d%%.",
 	"A thief nicks %s's %s in the marketplace! Item level reduced by %d%%.",
@@ -55,49 +74,60 @@ var itemGodsendMsgs = []string{
 	"%s finds a rare component and upgrades their %s! Item level increased by %d%%.",
 }
 
+// handOfGodMsgs[0] = hurt templates, handOfGodMsgs[1] = help templates.
+// Each uses (nick, pct) args.
 var handOfGodMsgs = [2][]string{
-	{ // hurt
+	{
 		"The hand of %s's god reaches down and sets them back %d%%!",
 		"%s has displeased their deity — struck back %d%%!",
 		"A divine rebuke sends %s stumbling backward %d%%!",
 	},
-	{ // help
+	{
 		"The hand of %s's god reaches down and pushes them forward %d%%!",
 		"%s basks in divine favour and surges ahead %d%%!",
 		"A celestial nudge propels %s forward %d%%!",
 	},
 }
 
+// Alignment constants. The int8 value is stored in Player.Alignment and
+// affects battle power, crit chance, and daily events.
 const (
 	AlignEvil    int8 = -1
 	AlignNeutral int8 = 0
 	AlignGood    int8 = 1
 )
 
+// alignNames maps the numeric alignment to its display string.
 var alignNames = map[int8]string{
 	AlignEvil:    "evil",
 	AlignNeutral: "neutral",
 	AlignGood:    "good",
 }
 
+// Good-alignment event templates use (nick1, nick2, pct) args (the triggering
+// player is nick1; their randomly chosen partner is nick2).
 var goodEventMsgs = []string{
 	"The light of %s's god shines upon %s and %s! Both surge ahead %d%%.",
 	"%s and %s are united by divine favour! Both gain %d%%.",
 	"The gods bless the fellowship of %s and %s! Both advance %d%%.",
 }
 
+// Evil steal templates use (evilNick, victimNick, slotName, itemLevel) args.
 var evilStealMsgs = []string{
 	"%s lurks in the shadows and makes off with %s's %s (level %d)!",
 	"%s bribes a corrupt merchant to acquire %s's %s (level %d)!",
 	"Under cover of darkness, %s pilfers %s's %s (level %d)!",
 }
 
+// forsakenMsgs are used when an evil player has no good target to steal from,
+// or loses the 50/50 steal roll. Args: (nick, pct).
 var forsakenMsgs = []string{
 	"%s is forsaken by their dark patron! TTL increased by %d%%.",
 	"The shadows abandon %s. TTL increased by %d%%.",
 	"%s's evil deeds catch up with them. TTL increased by %d%%.",
 }
 
+// questDescs are the flavour descriptions attached to quests.
 var questDescs = []string{
 	"slay the dragon terrorising the village of Mal'Gorn",
 	"recover the stolen Orb of Aldur from the goblin warrens",
@@ -113,37 +143,76 @@ var questDescs = []string{
 	"investigate the strange lights appearing over the Grimfen swamp",
 }
 
-const questMinLevel = 15
-const questMinPlayers = 4
+// Quest eligibility thresholds.
+const questMinLevel = 15  // minimum player level to be chosen as a quester
+const questMinPlayers = 4 // number of questers required to start a quest
+
+// gridSize is the side length of the toroidal map in tiles. Players wrap
+// around at the edges, so the effective space is always gridSize×gridSize.
 const gridSize = 500
 
+// Quest holds the state of an in-progress quest. Only one quest can be active
+// at a time (stored in Game.quest).
 type Quest struct {
-	Questers      []*Player
-	EndsAt        time.Time
-	Desc          string
-	OnlineAtStart map[string]bool // lowercase nicks online when quest began; only these are penalised on failure
-	// Grid-based quest fields.
-	IsGrid  bool
-	QX, QY  int
-	Reached map[string]bool // lowercase nicks that have reached the target
+	// Questers are the players chosen to complete this quest.
+	Questers []*Player
+	// EndsAt is when the quest times out. For grid quests it is also the
+	// deadline by which all questers must reach (QX, QY).
+	EndsAt time.Time
+	// Desc is the human-readable quest objective used in announcements.
+	Desc string
+	// OnlineAtStart records which players (lowercase nicks) were online when
+	// the quest began. Only these players are penalised on failure, preventing
+	// late-joiners from being punished for a quest they had no part in.
+	OnlineAtStart map[string]bool
+	// IsGrid distinguishes grid quests (must reach a coordinate) from time
+	// quests (must simply stay online until the timer expires).
+	IsGrid bool
+	// QX, QY are the target coordinates for grid quests.
+	QX, QY int
+	// Reached tracks which questers (lowercase nicks) have stepped onto
+	// (QX, QY). The quest resolves as soon as len(Reached) == len(Questers).
+	Reached map[string]bool
 }
 
+// Player represents a registered IdleRPG character. It is persisted to JSON
+// and keyed by lowercase nick in Game.players.
 type Player struct {
-	Nick      string
-	Class     string
-	Class2    string // second class chosen at level 12+, empty if not dual-classed
-	PassSalt  string
-	PassHash  string
+	Nick   string // display nick, case-preserved
+	Class  string // primary class, free-form text chosen at registration
+	Class2 string // secondary class chosen via !dualclass at level 12+; empty if not dual-classed
+
+	// Password is stored as a salted SHA-256 hash. PassSalt is a 16-byte
+	// random value encoded as 32 hex characters. This prevents rainbow-table
+	// attacks if the JSON file is ever leaked.
+	PassSalt string
+	PassHash string
+
+	// Alignment affects battle power (+/-10%), crit chance, and daily events.
 	Alignment int8
-	Level     int
-	TTL       int64      // seconds until next level
-	Items     [10]int    // item level per slot
-	ItemNames [10]string // unique name for each slot, empty for normal items
-	Online    bool
-	Addr      string // nick!user@host when online
-	X, Y      int    // position on the 500×500 grid (randomised on each login)
+
+	Level int
+	// TTL is seconds until the next level-up. It decrements by 1 every tick
+	// and is increased by penalties and random calamities.
+	TTL int64
+
+	// Items holds the item level for each of the ten equipment slots. A value
+	// of 0 means the slot is empty.
+	Items [10]int
+	// ItemNames holds the procedurally generated name for Uncommon/Rare/
+	// Legendary items. An empty string means the slot holds a plain item.
+	ItemNames [10]string
+
+	Online bool   // true while the player is connected and logged in
+	Addr   string // full nick!user@host mask used to identify the player on IRC
+
+	// X, Y are the player's current position on the toroidal grid. They are
+	// randomised on each login and are not persisted (position resets on reconnect).
+	X, Y int
 }
 
+// itemSum returns the total of all item slot levels, used as the base value
+// in battle calculations before focus-slot and alignment bonuses are applied.
 func (p *Player) itemSum() int {
 	s := 0
 	for _, v := range p.Items {
@@ -152,20 +221,44 @@ func (p *Player) itemSum() int {
 	return s
 }
 
+// Game is the central game state. All fields except DevMode are protected by mu.
 type Game struct {
-	players    map[string]*Player // keyed by lowercase nick
-	guilds     map[string]*Guild  // keyed by lowercase guild name
-	mu         sync.Mutex
-	dataFile   string
-	guildsFile string
-	say        func(string) // sends a message to the game channel
-	setTopic   func(string) // sets the channel topic (wired after construction)
-	lastEvent  string       // short description of the most recent notable event
-	stopTick   chan struct{}
-	quest      *Quest
-	DevMode    bool // speeds up TTL by 5× for development
+	// players maps lowercase nick to Player. It is the authoritative player
+	// store; all lookups and mutations go through this map under mu.
+	players map[string]*Player
+	// guilds maps lowercase guild name to Guild.
+	guilds map[string]*Guild
+
+	mu sync.Mutex
+
+	dataFile   string // path to the player JSON save file
+	guildsFile string // path to the guild JSON save file
+
+	// say sends a message to the game channel. Provided by main so the game
+	// engine is not coupled to a specific IRC library.
+	say func(string)
+	// setTopic sets the channel topic. Wired by main after construction.
+	setTopic func(string)
+
+	// lastEvent is a short description of the most recent notable game event,
+	// appended to the channel topic. Updated under mu; read outside mu.
+	lastEvent string
+
+	// stopTick is closed to stop the current tick goroutine. A new channel is
+	// created and a new goroutine launched on each call to start(), which
+	// prevents goroutine leaks across reconnects.
+	stopTick chan struct{}
+
+	// quest holds the active quest, or nil when none is running.
+	quest *Quest
+
+	// DevMode speeds up TTL by 5× and auto-logins existing channel members on
+	// connect. Set before start() is called; never mutated under mu.
+	DevMode bool
 }
 
+// newGame creates a Game, loads persisted player and guild data, and wires the
+// say function. setTopic must be assigned by the caller before start().
 func newGame(dataFile, guildsFile string, say func(string)) *Game {
 	g := &Game{
 		players:    make(map[string]*Player),
@@ -179,6 +272,8 @@ func newGame(dataFile, guildsFile string, say func(string)) *Game {
 	return g
 }
 
+// start stops any running tick goroutine, then launches a fresh one and
+// refreshes the channel topic. Called on every successful IRC connect.
 func (g *Game) start() {
 	if g.stopTick != nil {
 		close(g.stopTick)
@@ -188,7 +283,8 @@ func (g *Game) start() {
 	g.updateTopic()
 }
 
-// OnJoin auto-logins a registered player when they join the channel.
+// OnJoin auto-logs in a registered player when they join the channel and
+// announces their return. Unregistered joiners are silently ignored.
 func (g *Game) OnJoin(src string) {
 	nick := extractNick(src)
 	g.mu.Lock()
@@ -196,6 +292,8 @@ func (g *Game) OnJoin(src string) {
 	if p != nil {
 		p.Online = true
 		p.Addr = src
+		// Position is randomised on every login so players cannot farm
+		// encounters by repeatedly quitting and rejoining near a target.
 		p.X = mathrand.Intn(gridSize)
 		p.Y = mathrand.Intn(gridSize)
 	}
@@ -208,7 +306,7 @@ func (g *Game) OnJoin(src string) {
 	}
 }
 
-// OnPart marks player offline and applies penalty.
+// OnPart applies a p200 penalty and marks the player offline.
 func (g *Game) OnPart(src string) {
 	g.mu.Lock()
 	p := g.findByAddr(src)
@@ -223,7 +321,9 @@ func (g *Game) OnPart(src string) {
 	}
 }
 
-// OnQuit applies quit penalty (player stays registered but goes offline).
+// OnQuit applies a p20 penalty and marks the player offline. It first tries to
+// find the player by their full addr (nick!user@host); if that fails it falls
+// back to nick-only lookup to handle servers that omit the host on QUIT.
 func (g *Game) OnQuit(src string) {
 	nick := extractNick(src)
 	g.mu.Lock()
@@ -245,7 +345,9 @@ func (g *Game) OnQuit(src string) {
 	}
 }
 
-// OnNick applies nick-change penalty and re-keys the player map and guild records.
+// OnNick applies a p30 penalty, re-keys the player in the map under the new
+// nick, and updates any guild membership or leadership records that reference
+// the old nick.
 func (g *Game) OnNick(src, newNick string) {
 	oldNick := extractNick(src)
 	oldKey := strings.ToLower(oldNick)
@@ -256,9 +358,9 @@ func (g *Game) OnNick(src, newNick string) {
 		g.applyPenalty(p, 30)
 		delete(g.players, oldKey)
 		p.Nick = newNick
+		// Addr is stored as "nick!user@host"; replace only the nick portion.
 		p.Addr = strings.Replace(p.Addr, oldNick, newNick, 1)
 		g.players[newKey] = p
-		// Update guild membership and leadership.
 		if guild := g.playerGuild(oldKey); guild != nil {
 			for i, m := range guild.Members {
 				if m == oldKey {
@@ -280,7 +382,7 @@ func (g *Game) OnNick(src, newNick string) {
 	}
 }
 
-// OnKick applies a kick penalty and marks the player offline.
+// OnKick applies a p50 penalty and marks the kicked player offline.
 func (g *Game) OnKick(kickedNick string) {
 	g.mu.Lock()
 	p := g.players[strings.ToLower(kickedNick)]
@@ -296,7 +398,8 @@ func (g *Game) OnKick(kickedNick string) {
 	}
 }
 
-// OnPrivmsg applies a talk penalty for registered online players.
+// OnPrivmsg applies a talk penalty of 1 second per character of the message.
+// Called for every PRIVMSG in the game channel, including commands.
 func (g *Game) OnPrivmsg(src, text string) {
 	g.mu.Lock()
 	p := g.findByAddr(src)
@@ -309,7 +412,10 @@ func (g *Game) OnPrivmsg(src, text string) {
 	}
 }
 
-// CmdRegister creates a new character.
+// CmdRegister creates a new character with the given nick, class, and password.
+// The registration result is announced publicly; the password itself is never
+// echoed. Returns an error string if the nick is already taken or inputs are
+// out of range.
 func (g *Game) CmdRegister(src, nick, class, pass string) string {
 	if len(nick) == 0 || len(nick) > 30 {
 		return "Nick must be 1–30 characters."
@@ -327,6 +433,8 @@ func (g *Game) CmdRegister(src, nick, class, pass string) string {
 		Level:    0,
 		TTL:      g.ttlForLevel(0),
 	}
+	// Hold the lock across both the existence check and the insert to prevent
+	// two concurrent !register calls from creating duplicate nicks (TOCTOU).
 	g.mu.Lock()
 	_, exists := g.players[key]
 	if !exists {
@@ -340,7 +448,9 @@ func (g *Game) CmdRegister(src, nick, class, pass string) string {
 	return fmt.Sprintf("%s, the %s, has registered for IdleRPG! Next level in %s.", nick, class, fmtDuration(p.TTL))
 }
 
-// CmdLogin logs in a player by matching their current IRC nick.
+// CmdLogin authenticates the player whose current IRC nick matches a registered
+// character. The response is sent privately to avoid leaking "Wrong password."
+// to the channel.
 func (g *Game) CmdLogin(src, pass string) string {
 	nick := extractNick(src)
 	key := strings.ToLower(nick)
@@ -350,6 +460,8 @@ func (g *Game) CmdLogin(src, pass string) string {
 	if !ok {
 		return "No character registered with that nick. Use !register <nick> <class> <pass> first."
 	}
+	// Use constant-time comparison to avoid leaking password length or prefix
+	// information through timing differences.
 	if subtle.ConstantTimeCompare([]byte(p.PassHash), []byte(hashPass(p.PassSalt, pass))) != 1 {
 		return "Wrong password."
 	}
@@ -361,7 +473,7 @@ func (g *Game) CmdLogin(src, pass string) string {
 	return fmt.Sprintf("%s, the level %d %s, has logged in! Next level in %s.", nick, p.Level, p.Class, fmtDuration(p.TTL))
 }
 
-// CmdLogout logs out the calling player.
+// CmdLogout marks the calling player offline. No penalty is applied.
 func (g *Game) CmdLogout(src string) string {
 	nick := extractNick(src)
 	g.mu.Lock()
@@ -377,7 +489,8 @@ func (g *Game) CmdLogout(src string) string {
 	return fmt.Sprintf("%s has logged out of IdleRPG.", nick)
 }
 
-// CmdAlign sets a player's alignment, applying a penalty if changing.
+// CmdAlign sets the calling player's alignment. Changing alignment (not just
+// confirming the current one) costs a p75 penalty.
 func (g *Game) CmdAlign(src, align string) string {
 	var newAlign int8
 	switch strings.ToLower(align) {
@@ -409,7 +522,8 @@ func (g *Game) CmdAlign(src, align string) string {
 	return fmt.Sprintf("%s is already %s.", p.Nick, alignNames[newAlign])
 }
 
-// CmdDualClass lets a player at level 12+ choose a permanent second class.
+// CmdDualClass lets a player at level 12+ permanently choose a second class.
+// The second class adds an additional focus-slot bonus in all battle rolls.
 func (g *Game) CmdDualClass(src, class string) string {
 	class = strings.TrimSpace(class)
 	if class == "" {
@@ -443,7 +557,8 @@ func (g *Game) CmdDualClass(src, class string) string {
 		nick, p.Class, class, itemSlots[slot1], itemSlots[slot2])
 }
 
-// CmdStatus returns a player's status string.
+// CmdStatus returns a one-line status summary for the target player. If
+// targetNick is empty, it reports on the calling player.
 func (g *Game) CmdStatus(src, targetNick string) string {
 	if targetNick == "" {
 		targetNick = extractNick(src)
@@ -458,6 +573,7 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 	if p.Online {
 		status = "online"
 	}
+	// Check whether the player is an active quester.
 	questInfo := ""
 	g.mu.Lock()
 	if g.quest != nil {
@@ -485,7 +601,9 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 		fmtDuration(p.TTL), p.itemSum(), focusDisplay)
 }
 
-// CmdPos returns the grid position of a player (self if no target given).
+// CmdPos returns the grid coordinates of the target player and lists any
+// co-located players sharing the same tile. If targetNick is empty, reports
+// on the calling player.
 func (g *Game) CmdPos(src, targetNick string) string {
 	if targetNick == "" {
 		targetNick = extractNick(src)
@@ -502,7 +620,6 @@ func (g *Game) CmdPos(src, targetNick string) string {
 	}
 	x, y, nick := p.X, p.Y, p.Nick
 
-	// Find other players sharing the same tile.
 	var neighbours []string
 	for _, op := range g.players {
 		if op != p && op.Online && op.X == x && op.Y == y {
@@ -510,7 +627,6 @@ func (g *Game) CmdPos(src, targetNick string) string {
 		}
 	}
 
-	// Check if on a quest destination.
 	questNote := ""
 	if g.quest != nil && g.quest.IsGrid && g.quest.QX == x && g.quest.QY == y {
 		questNote = " [quest destination!]"
@@ -524,7 +640,8 @@ func (g *Game) CmdPos(src, targetNick string) string {
 	return info
 }
 
-// CmdTop returns the top 5 players by level.
+// CmdTop returns the top 5 players sorted by level descending, then by TTL
+// ascending (closest to levelling up wins ties).
 func (g *Game) CmdTop() string {
 	g.mu.Lock()
 	players := make([]*Player, 0, len(g.players))
@@ -555,7 +672,8 @@ func (g *Game) CmdTop() string {
 	return "Top players: " + strings.Join(parts, " | ")
 }
 
-// CmdQuest returns the status of the active quest, if any.
+// CmdQuest returns a human-readable description of the active quest including
+// questers, objective, type, and remaining time.
 func (g *Game) CmdQuest() string {
 	g.mu.Lock()
 	q := g.quest
@@ -582,7 +700,7 @@ func (g *Game) CmdQuest() string {
 		questers, q.Desc, fmtDuration(int64(time.Until(q.EndsAt).Seconds())))
 }
 
-// CmdOnline lists all currently online players.
+// CmdOnline returns a sorted list of all currently online players with their levels.
 func (g *Game) CmdOnline() string {
 	g.mu.Lock()
 	var parts []string
@@ -600,6 +718,8 @@ func (g *Game) CmdOnline() string {
 	return fmt.Sprintf("Online (%d): %s", len(parts), strings.Join(parts, ", "))
 }
 
+// tick is the main game loop. It fires once per second for as long as the stop
+// channel remains open (closed by start() on reconnect).
 func (g *Game) tick(stop <-chan struct{}) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
@@ -631,6 +751,8 @@ func (g *Game) tick(stop <-chan struct{}) {
 		for _, msg := range msgs {
 			g.say(msg)
 		}
+		// Encounters trigger a standard 1v1 battle outside the lock because
+		// battle() acquires mu internally.
 		for _, ep := range encounterPairs {
 			g.battle(ep[0], ep[1])
 		}
@@ -646,8 +768,9 @@ func (g *Game) tick(stop <-chan struct{}) {
 	}
 }
 
-// tickPlayers decrements TTL for each online player, queues level-ups, and fires
-// per-player random/alignment/bot-battle events. Must be called with mu held.
+// tickPlayers decrements TTL for each online player, queues those whose TTL
+// has reached zero for level-up, and fires per-player random/bot-battle/
+// alignment events. Must be called with mu held.
 func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string) {
 	for _, p := range online {
 		p.TTL--
@@ -655,9 +778,11 @@ func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string)
 			levelUps = append(levelUps, p)
 			continue
 		}
+		// ~1/day: random individual event (calamity, godsend, item change, find item).
 		if mathrand.Intn(86400) == 0 {
 			msgs = append(msgs, g.randomEvent(p))
 		}
+		// ~1/day: 1v1 challenge against the bot.
 		if mathrand.Intn(86400) == 0 {
 			msgs = append(msgs, g.botBattle(p))
 		}
@@ -666,17 +791,20 @@ func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string)
 	return
 }
 
-// tickAlignmentEvent fires an alignment-specific event for p with appropriate
-// probability. Must be called with mu held.
+// tickAlignmentEvent fires an alignment-specific event for p with the
+// appropriate per-alignment probability. Returns zero or one message.
+// Must be called with mu held.
 func (g *Game) tickAlignmentEvent(p *Player, online []*Player) []string {
 	switch p.Alignment {
 	case AlignGood:
+		// ~once per 12 days: pair with another good player for a mutual TTL bonus.
 		if mathrand.Intn(86400*12) == 0 {
 			if m := g.goodAlignmentEvent(p, online); m != "" {
 				return []string{m}
 			}
 		}
 	case AlignEvil:
+		// ~once per 8 days: steal from a good player or get forsaken.
 		if mathrand.Intn(86400*8) == 0 {
 			return []string{g.evilAlignmentEvent(p, online)}
 		}
@@ -684,23 +812,29 @@ func (g *Game) tickAlignmentEvent(p *Player, online []*Player) []string {
 	return nil
 }
 
-// tickGrid moves every online player one step and detects co-tile encounters.
-// Must be called with mu held.
+// tickGrid moves every online player one step in a random direction on the
+// toroidal map and checks for co-tile encounters. Returns up to one encounter
+// pair per tick (to prevent message flooding) and any encounter announcement
+// messages. Must be called with mu held.
 func (g *Game) tickGrid(online []*Player) (encounterPairs [][2]*Player, msgs []string) {
+	// Build a position map after moving everyone.
 	posMap := make(map[[2]int][]*Player, len(online))
 	for _, p := range online {
+		// ±1 step with toroidal wrap; +gridSize before mod prevents negative indices.
 		p.X = (p.X + mathrand.Intn(3) - 1 + gridSize) % gridSize
 		p.Y = (p.Y + mathrand.Intn(3) - 1 + gridSize) % gridSize
 		key := [2]int{p.X, p.Y}
 		posMap[key] = append(posMap[key], p)
 	}
 
+	// Encounter probability scales with the crowd: 1/len(online) per shared
+	// tile, so larger populations see proportionally fewer surprise fights.
 	if len(online) > 0 {
 		for _, group := range posMap {
 			if len(group) >= 2 && mathrand.Intn(len(online)) == 0 {
 				mathrand.Shuffle(len(group), func(i, j int) { group[i], group[j] = group[j], group[i] })
 				encounterPairs = append(encounterPairs, [2]*Player{group[0], group[1]})
-				break // one encounter per tick
+				break // one encounter per tick to avoid flooding
 			}
 		}
 	}
@@ -712,8 +846,9 @@ func (g *Game) tickGrid(online []*Player) (encounterPairs [][2]*Player, msgs []s
 	return
 }
 
-// tickQuestProgress checks whether grid-quest questers have reached the target
-// and resolves the quest when all arrive. Must be called with mu held.
+// tickQuestProgress checks whether any grid-quest questers have stepped onto
+// the target tile and resolves the quest immediately when all arrive.
+// Must be called with mu held.
 func (g *Game) tickQuestProgress(online []*Player) []string {
 	if g.quest == nil || !g.quest.IsGrid {
 		return nil
@@ -734,8 +869,9 @@ func (g *Game) tickQuestProgress(online []*Player) []string {
 	return msgs
 }
 
-// tickServerEvents fires server-wide periodic events: Hand of God, team battle,
-// guild battle, quest start, and quest time-out resolution. Must be called with mu held.
+// tickServerEvents fires the server-wide periodic events: Hand of God (~1/20
+// days), team battle (~4/day when 6+ online), guild battle (~1/day), quest
+// start (~1/day), and quest timeout resolution. Must be called with mu held.
 func (g *Game) tickServerEvents(online []*Player) []string {
 	var msgs []string
 	if len(online) > 0 && mathrand.Intn(86400*20) == 0 {
@@ -757,8 +893,9 @@ func (g *Game) tickServerEvents(online []*Player) []string {
 	return msgs
 }
 
-// captureNotableEvent returns the first message worth recording as the last
-// event (for the channel topic), trimmed to 80 characters. Must be called with mu held.
+// captureNotableEvent scans msgs for one worth recording as the channel topic's
+// "last event" line. Returns the first matching message trimmed to 80 characters,
+// or "" if none qualify. Must be called with mu held.
 func (g *Game) captureNotableEvent(msgs []string) string {
 	for _, m := range msgs {
 		if isNotableEvent(m) {
@@ -771,6 +908,8 @@ func (g *Game) captureNotableEvent(msgs []string) string {
 	return ""
 }
 
+// isNotableEvent reports whether msg describes an event significant enough to
+// display in the channel topic.
 func isNotableEvent(m string) bool {
 	return strings.Contains(m, "Quest") || strings.Contains(m, "quest") ||
 		strings.Contains(m, "Guild battle") || strings.Contains(m, "Team battle") ||
@@ -778,7 +917,8 @@ func isNotableEvent(m string) bool {
 		strings.Contains(m, "god") || strings.Contains(m, "LEGENDARY")
 }
 
-// onlinePlayers returns a slice of all online players. Must be called with mu held.
+// onlinePlayers returns a snapshot of all currently online players.
+// Must be called with mu held.
 func (g *Game) onlinePlayers() []*Player {
 	out := make([]*Player, 0, len(g.players))
 	for _, p := range g.players {
@@ -789,6 +929,9 @@ func (g *Game) onlinePlayers() []*Player {
 	return out
 }
 
+// doLevelUp increments p's level, rolls a new item drop, announces the
+// level-up, and triggers a 1v1 battle against a random online opponent.
+// Called outside the lock; acquires mu internally for state mutations.
 func (g *Game) doLevelUp(p *Player) {
 	g.mu.Lock()
 	p.Level++
@@ -806,6 +949,7 @@ func (g *Game) doLevelUp(p *Player) {
 	ttl := p.TTL
 	isum := p.itemSum()
 
+	// Collect eligible opponents while the lock is held.
 	online := g.onlinePlayers()
 	var opponents []*Player
 	for _, op := range online {
@@ -846,10 +990,14 @@ func (g *Game) doLevelUp(p *Player) {
 	}
 }
 
+// battle runs a standard 1v1 fight between a and b. Each side rolls
+// rand(0, effectiveItemSum); the higher roll wins. The TTL swing is
+// max(loser.Level/4, 7)% and is doubled on a critical hit. The winner has a
+// 3% chance to steal one item slot from the loser. Acquires mu internally.
 func (g *Game) battle(a, b *Player) {
 	g.mu.Lock()
 
-	// Alignment modifies effective item sum: good +10%, evil -10%.
+	// alignBonus adjusts a player's effective item sum: good +10%, evil -10%.
 	alignBonus := func(p *Player, sum int) int {
 		switch p.Alignment {
 		case AlignGood:
@@ -862,6 +1010,7 @@ func (g *Game) battle(a, b *Player) {
 
 	aSum := alignBonus(a, effectiveItemSum(a))
 	bSum := alignBonus(b, effectiveItemSum(b))
+	// Clamp to 1 so mathrand.Intn never panics on a player with no items.
 	if aSum < 1 {
 		aSum = 1
 	}
@@ -879,7 +1028,7 @@ func (g *Game) battle(a, b *Player) {
 		wRoll, lRoll = bRoll, aRoll
 	}
 
-	// Critical hit: Good 1/50, Evil 1/20 — doubles the TTL swing.
+	// Crit probabilities differ by alignment; a crit doubles the TTL swing.
 	crit := false
 	switch winner.Alignment {
 	case AlignGood:
@@ -919,9 +1068,10 @@ func (g *Game) battle(a, b *Player) {
 	}
 }
 
-// botBattle pits a player against the bot. Bot item sum = 1 + highest player sum
-// across all registered players. Win: 20% TTL reduction. Loss: 10% TTL increase.
-// Must be called with mu held.
+// botBattle pits p against the bot in a 1v1 fight. The bot's item sum is set
+// to 1 + the highest effectiveItemSum across all registered players, making it
+// a credible but beatable opponent at any stage of the game.
+// Win: −20% TTL. Loss: +10% TTL. Must be called with mu held.
 func (g *Game) botBattle(p *Player) string {
 	botSum := 1
 	for _, op := range g.players {
@@ -960,13 +1110,13 @@ func (g *Game) botBattle(p *Player) string {
 		p.Nick, pRoll, pSum, botRoll, botSum)
 }
 
-// tryStealItem gives the winner a 3% chance to steal one item from the loser.
-// Must be called with mu held.
+// tryStealItem gives the winner a 3% chance to take one item slot from the
+// loser. If the stolen item is better than what the winner already has in that
+// slot it is equipped; otherwise it is discarded. Must be called with mu held.
 func (g *Game) tryStealItem(winner, loser *Player) string {
 	if mathrand.Intn(100) >= 3 {
 		return ""
 	}
-	// Pick a random slot where the loser has something worth taking.
 	candidates := make([]int, 0, 10)
 	for i, v := range loser.Items {
 		if v > 0 {
@@ -995,7 +1145,10 @@ func (g *Game) tryStealItem(winner, loser *Player) string {
 		winner.Nick, loser.Nick, itemDesc, stolen)
 }
 
-// randomEvent fires a random individual event for one player. Must be called with mu held.
+// randomEvent fires one of five equally likely individual events for p:
+// TTL calamity, TTL godsend, item calamity, item godsend, or found item.
+// The magnitude is 5–12% for all TTL and item changes.
+// Must be called with mu held.
 func (g *Game) randomEvent(p *Player) string {
 	pct := mathrand.Intn(8) + 5
 	change := p.TTL * int64(pct) / 100
@@ -1003,37 +1156,30 @@ func (g *Game) randomEvent(p *Player) string {
 		change = 1
 	}
 
-	// Pick event type: 0=ttl calamity, 1=ttl godsend, 2=item calamity, 3=item godsend, 4=find item
-	eventType := mathrand.Intn(5)
-
-	switch eventType {
+	switch mathrand.Intn(5) {
 	case 0: // TTL calamity
 		p.TTL += change
-		tmpl := calamityMsgs[mathrand.Intn(len(calamityMsgs))]
-		return fmt.Sprintf(tmpl, p.Nick, pct)
+		return fmt.Sprintf(calamityMsgs[mathrand.Intn(len(calamityMsgs))], p.Nick, pct)
 
 	case 1: // TTL godsend
 		p.TTL -= change
 		if p.TTL < 1 {
 			p.TTL = 1
 		}
-		tmpl := godsendMsgs[mathrand.Intn(len(godsendMsgs))]
-		return fmt.Sprintf(tmpl, p.Nick, pct)
+		return fmt.Sprintf(godsendMsgs[mathrand.Intn(len(godsendMsgs))], p.Nick, pct)
 
-	case 2: // Item calamity — degrade one non-zero item
+	case 2: // Item calamity — degrade one non-zero slot
 		slot := g.pickNonZeroSlot(p)
 		if slot < 0 {
-			// Fall back to TTL calamity if no items.
+			// No items yet; fall back to a TTL calamity.
 			p.TTL += change
 			return fmt.Sprintf(calamityMsgs[0], p.Nick, pct)
 		}
 		old := p.Items[slot]
-		reduced := int(math.Max(float64(old)*float64(100-pct)/100, 1))
-		p.Items[slot] = reduced
-		tmpl := itemCalamityMsgs[mathrand.Intn(len(itemCalamityMsgs))]
-		return fmt.Sprintf(tmpl, p.Nick, itemSlots[slot], pct)
+		p.Items[slot] = int(math.Max(float64(old)*float64(100-pct)/100, 1))
+		return fmt.Sprintf(itemCalamityMsgs[mathrand.Intn(len(itemCalamityMsgs))], p.Nick, itemSlots[slot], pct)
 
-	case 3: // Item godsend — improve one item
+	case 3: // Item godsend — improve one slot (creates a level-1 item if all empty)
 		slot := g.pickNonZeroSlot(p)
 		if slot < 0 {
 			slot = mathrand.Intn(10)
@@ -1041,10 +1187,9 @@ func (g *Game) randomEvent(p *Player) string {
 		}
 		old := p.Items[slot]
 		p.Items[slot] = int(math.Max(float64(old)*float64(100+pct)/100, float64(old)+1))
-		tmpl := itemGodsendMsgs[mathrand.Intn(len(itemGodsendMsgs))]
-		return fmt.Sprintf(tmpl, p.Nick, itemSlots[slot], pct)
+		return fmt.Sprintf(itemGodsendMsgs[mathrand.Intn(len(itemGodsendMsgs))], p.Nick, itemSlots[slot], pct)
 
-	default: // Find a random item on the ground
+	default: // Found item — random slot, level up to 1.5× player level
 		slot := mathrand.Intn(10)
 		maxItem := int(math.Max(float64(p.Level)*1.5, 1))
 		found := mathrand.Intn(maxItem) + 1
@@ -1058,7 +1203,8 @@ func (g *Game) randomEvent(p *Player) string {
 	}
 }
 
-// pickNonZeroSlot returns a random item slot index that has a value > 0, or -1 if none.
+// pickNonZeroSlot returns the index of a randomly chosen item slot that
+// currently has a value > 0, or -1 if all slots are empty.
 // Must be called with mu held.
 func (g *Game) pickNonZeroSlot(p *Player) int {
 	candidates := make([]int, 0, 10)
@@ -1073,30 +1219,31 @@ func (g *Game) pickNonZeroSlot(p *Player) int {
 	return candidates[mathrand.Intn(len(candidates))]
 }
 
-// handOfGod fires a dramatic divine event on a random online player. Must be called with mu held.
+// handOfGod fires a dramatic divine intervention on a random online player.
+// 80% chance to help (5–75% TTL reduction), 20% chance to hurt (same range).
+// Must be called with mu held.
 func (g *Game) handOfGod(p *Player) string {
 	pct := mathrand.Intn(71) + 5 // 5–75%
 	change := p.TTL * int64(pct) / 100
 	if change < 1 {
 		change = 1
 	}
-	if mathrand.Intn(5) == 0 { // 20% chance to hurt
+	if mathrand.Intn(5) == 0 { // 20% hurt
 		p.TTL += change
-		tmpl := handOfGodMsgs[0][mathrand.Intn(len(handOfGodMsgs[0]))]
-		return fmt.Sprintf(tmpl, p.Nick, pct)
+		return fmt.Sprintf(handOfGodMsgs[0][mathrand.Intn(len(handOfGodMsgs[0]))], p.Nick, pct)
 	}
 	p.TTL -= change
 	if p.TTL < 1 {
 		p.TTL = 1
 	}
-	tmpl := handOfGodMsgs[1][mathrand.Intn(len(handOfGodMsgs[1]))]
-	return fmt.Sprintf(tmpl, p.Nick, pct)
+	return fmt.Sprintf(handOfGodMsgs[1][mathrand.Intn(len(handOfGodMsgs[1]))], p.Nick, pct)
 }
 
-// teamBattle selects two teams of 3 from online players and runs a group battle.
+// teamBattle selects two random teams of three from the online players and
+// runs a group fight. The winning team's TTL drops by 20% of their weakest
+// member's TTL; the losing team's TTL increases by the same amount.
 // Must be called with mu held.
 func (g *Game) teamBattle(online []*Player) []string {
-	// Shuffle and pick 6.
 	shuffled := make([]*Player, len(online))
 	copy(shuffled, online)
 	mathrand.Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
@@ -1127,7 +1274,7 @@ func (g *Game) teamBattle(online []*Player) []string {
 		wRoll, lRoll, wSum, lSum = rollB, rollA, sumB, sumA
 	}
 
-	// Find the lowest TTL on each team for scaling the change.
+	// Scale TTL change to the weakest winner so no single player is wiped out.
 	minWinnerTTL := winners[0].TTL
 	for _, p := range winners[1:] {
 		if p.TTL < minWinnerTTL {
@@ -1161,7 +1308,10 @@ func (g *Game) teamBattle(online []*Player) []string {
 	}
 }
 
-// tryStartQuest attempts to launch a quest when conditions are met. Must be called with mu held.
+// tryStartQuest attempts to launch a quest when conditions are met: at least
+// questMinPlayers players at questMinLevel+ are online. Randomly chooses
+// between a grid quest (reach coordinates) and a time quest (stay online).
+// Must be called with mu held.
 func (g *Game) tryStartQuest(online []*Player) []string {
 	eligible := make([]*Player, 0)
 	for _, p := range online {
@@ -1184,12 +1334,13 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 		names[i] = p.Nick
 	}
 
+	// Record who is online now; only these players will be penalised if the
+	// quest fails (late-joiners are excluded from the penalty).
 	onlineAtStart := make(map[string]bool, len(online))
 	for _, p := range online {
 		onlineAtStart[strings.ToLower(p.Nick)] = true
 	}
 
-	// 50% chance of a grid-based quest.
 	if mathrand.Intn(2) == 0 {
 		qx := mathrand.Intn(gridSize)
 		qy := mathrand.Intn(gridSize)
@@ -1221,11 +1372,14 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 	}
 }
 
-// resolveQuest completes or fails the active quest. Must be called with mu held.
+// resolveQuest determines success or failure for the active quest. Success
+// requires all questers to still be online (and, for grid quests, having
+// reached the target — that is handled by tickQuestProgress before this is
+// called on timeout). On failure, only players who were online when the quest
+// started receive the p15 penalty. Must be called with mu held.
 func (g *Game) resolveQuest(online []*Player) []string {
 	quest := g.quest
 
-	// Check all questers are still online.
 	onlineSet := make(map[*Player]bool, len(online))
 	for _, p := range online {
 		onlineSet[p] = true
@@ -1244,7 +1398,6 @@ func (g *Game) resolveQuest(online []*Player) []string {
 	}
 
 	if allOnline {
-		// Success: all questers get 25% TTL reduction.
 		for _, qp := range quest.Questers {
 			change := qp.TTL * 25 / 100
 			qp.TTL -= change
@@ -1264,7 +1417,6 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		}
 	}
 
-	// Failure: only players who were online when the quest started are penalised.
 	for _, p := range online {
 		if quest.OnlineAtStart[strings.ToLower(p.Nick)] {
 			g.applyPenalty(p, 15)
@@ -1290,7 +1442,9 @@ func (g *Game) resolveQuest(online []*Player) []string {
 	}
 }
 
-// goodAlignmentEvent pairs two good players for a mutual TTL bonus. Must be called with mu held.
+// goodAlignmentEvent pairs p with a random good-aligned online partner and
+// grants both a mutual 5–12% TTL reduction. Returns "" if no eligible partner
+// is online. Must be called with mu held.
 func (g *Game) goodAlignmentEvent(p *Player, online []*Player) string {
 	var partners []*Player
 	for _, op := range online {
@@ -1313,11 +1467,12 @@ func (g *Game) goodAlignmentEvent(p *Player, online []*Player) string {
 			target.TTL = 1
 		}
 	}
-	tmpl := goodEventMsgs[mathrand.Intn(len(goodEventMsgs))]
-	return fmt.Sprintf(tmpl, p.Nick, partner.Nick, pct)
+	return fmt.Sprintf(goodEventMsgs[mathrand.Intn(len(goodEventMsgs))], p.Nick, partner.Nick, pct)
 }
 
-// evilAlignmentEvent either steals an item from a good player or gets forsaken. Must be called with mu held.
+// evilAlignmentEvent either steals one item from a good-aligned player (50%
+// chance when a target is available) or inflicts a forsaken penalty on p.
+// Must be called with mu held.
 func (g *Game) evilAlignmentEvent(p *Player, online []*Player) string {
 	var goodTargets []*Player
 	for _, op := range online {
@@ -1326,7 +1481,6 @@ func (g *Game) evilAlignmentEvent(p *Player, online []*Player) string {
 		}
 	}
 
-	// If there's a good player to steal from, 50/50 steal vs. forsaken.
 	if len(goodTargets) > 0 && mathrand.Intn(2) == 0 {
 		target := goodTargets[mathrand.Intn(len(goodTargets))]
 		slot := g.pickNonZeroSlot(target)
@@ -1336,8 +1490,8 @@ func (g *Game) evilAlignmentEvent(p *Player, online []*Player) string {
 			if stolen > p.Items[slot] {
 				p.Items[slot] = stolen
 			}
-			tmpl := evilStealMsgs[mathrand.Intn(len(evilStealMsgs))]
-			return fmt.Sprintf(tmpl, p.Nick, target.Nick, itemSlots[slot], stolen)
+			return fmt.Sprintf(evilStealMsgs[mathrand.Intn(len(evilStealMsgs))],
+				p.Nick, target.Nick, itemSlots[slot], stolen)
 		}
 	}
 
@@ -1348,15 +1502,19 @@ func (g *Game) evilAlignmentEvent(p *Player, online []*Player) string {
 		change = 1
 	}
 	p.TTL += change
-	tmpl := forsakenMsgs[mathrand.Intn(len(forsakenMsgs))]
-	return fmt.Sprintf(tmpl, p.Nick, pct)
+	return fmt.Sprintf(forsakenMsgs[mathrand.Intn(len(forsakenMsgs))], p.Nick, pct)
 }
 
-// applyPenalty adds base * 1.14^level seconds. Must be called with mu held.
+// applyPenalty adds base × 1.14^level seconds to p's TTL. The exponential
+// factor means penalties grow with level, keeping them meaningful at high levels
+// without being crippling for new players. Must be called with mu held.
 func (g *Game) applyPenalty(p *Player, base int64) {
 	p.TTL += int64(float64(base) * math.Pow(1.14, float64(p.Level)))
 }
 
+// findByAddr returns the online player whose stored Addr matches addr
+// (case-insensitive). Returns nil if no online player matches.
+// Must be called with mu held.
 func (g *Game) findByAddr(addr string) *Player {
 	lo := strings.ToLower(addr)
 	for _, p := range g.players {
@@ -1367,6 +1525,8 @@ func (g *Game) findByAddr(addr string) *Player {
 	return nil
 }
 
+// save marshals the player map to JSON and writes it atomically. Called after
+// every state mutation so a crash never leaves the save file half-written.
 func (g *Game) save() {
 	if g.dataFile == "" {
 		return
@@ -1383,9 +1543,9 @@ func (g *Game) save() {
 	}
 }
 
-// writeFileAtomic writes data to path via a temp file + rename so a crash
-// mid-write never leaves a half-written file.  Mode 0600 protects the file
-// (which contains password hashes) from other local users.
+// writeFileAtomic writes data to path via a sibling temp file followed by an
+// os.Rename, which is atomic on Linux. Mode 0600 restricts read access to the
+// owner, protecting the password hashes stored in the player file.
 func writeFileAtomic(path string, data []byte) error {
 	dir := filepath.Dir(path)
 	tmp, err := os.CreateTemp(dir, ".save-")
@@ -1409,6 +1569,8 @@ func writeFileAtomic(path string, data []byte) error {
 	return os.Rename(tmpName, path)
 }
 
+// load reads the player JSON file from disk. All players are marked offline
+// after load; they re-authenticate via OnJoin or !login.
 func (g *Game) load() {
 	if g.dataFile == "" {
 		return
@@ -1431,8 +1593,15 @@ func (g *Game) load() {
 	log.Printf("loaded %d players", len(g.players))
 }
 
-// ttlForLevel returns seconds to next level. After level 60 it adds one day per level
-// to prevent the curve from becoming impossibly steep.
+// ttlForLevel returns the number of seconds required to advance from level to
+// level+1. The curve is:
+//
+//	levels 1–60:  600 × 1.16^level  seconds
+//	levels 60+:   base_60 + 86400 × (level − 60)  seconds
+//
+// Adding one day per level beyond 60 prevents the exponential from becoming
+// astronomically large while still rewarding dedicated long-term players.
+// In DevMode all values are divided by 5 for faster testing.
 func (g *Game) ttlForLevel(level int) int64 {
 	var t int64
 	if level <= 60 {
@@ -1447,17 +1616,23 @@ func (g *Game) ttlForLevel(level int) int64 {
 	return t
 }
 
+// newSalt generates a 16-byte cryptographically random salt and returns it
+// as a 32-character lowercase hex string.
 func newSalt() string {
 	b := make([]byte, 16)
 	rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
+// hashPass returns the SHA-256 hex digest of salt+pass. The salt is prepended
+// in plain text so each player's hash is unique even when passwords match.
 func hashPass(salt, pass string) string {
 	h := sha256.Sum256([]byte(salt + pass))
 	return fmt.Sprintf("%x", h)
 }
 
+// extractNick parses the nick out of a full IRC source string ("nick!user@host").
+// Returns the full string unchanged if it contains no "!" separator.
 func extractNick(src string) string {
 	if idx := strings.Index(src, "!"); idx > 0 {
 		return src[:idx]
@@ -1465,6 +1640,8 @@ func extractNick(src string) string {
 	return src
 }
 
+// idleFlavors are short strings appended to the channel topic when no players
+// are registered or when everyone is offline and there is no recent event.
 var idleFlavors = []string{
 	"The realm awaits brave heroes.",
 	"Silence fills the land — idle and grow strong.",
@@ -1475,7 +1652,7 @@ var idleFlavors = []string{
 }
 
 // updateTopic rebuilds and sets the channel topic from current game state.
-// Safe to call from any goroutine; must NOT be called while holding mu.
+// Must NOT be called while holding mu.
 func (g *Game) updateTopic() {
 	if g.setTopic == nil {
 		return
@@ -1486,7 +1663,8 @@ func (g *Game) updateTopic() {
 	g.setTopic(topic)
 }
 
-// buildTopic assembles the channel topic string. Must be called with mu held.
+// buildTopic assembles the full channel topic string from the current game
+// state snapshot. Must be called with mu held.
 func (g *Game) buildTopic() string {
 	online, total, top := 0, len(g.players), (*Player)(nil)
 	for _, p := range g.players {
@@ -1518,7 +1696,8 @@ func (g *Game) buildTopic() string {
 	return strings.Join(parts, " | ")
 }
 
-// questTopicPart formats the active quest for the channel topic. Must be called with mu held.
+// questTopicPart formats the active quest into a short topic segment.
+// Returns "" when no quest is active. Must be called with mu held.
 func (g *Game) questTopicPart() string {
 	if g.quest == nil {
 		return ""
@@ -1531,8 +1710,8 @@ func (g *Game) questTopicPart() string {
 	return fmt.Sprintf("Quest: %s [%s left]", g.quest.Desc, remaining)
 }
 
-// noteEvent records a short event description and refreshes the topic.
-// Must NOT be called while holding mu.
+// noteEvent records msg as the most recent notable event and refreshes the
+// channel topic. Must NOT be called while holding mu.
 func (g *Game) noteEvent(msg string) {
 	g.mu.Lock()
 	g.lastEvent = msg
@@ -1540,25 +1719,27 @@ func (g *Game) noteEvent(msg string) {
 	g.updateTopic()
 }
 
-// classFocusSlot returns the item slot index (0-9) that is the focus of a given
-// class. Derived via FNV-1a hash so every free-form class name maps to a unique,
-// deterministic slot without requiring a fixed class list.
+// classFocusSlot maps a free-form class name to one of the ten item slot
+// indices (0–9) using an FNV-1a hash. The mapping is deterministic and
+// case-insensitive, so any two players with the same class share the same focus
+// slot without requiring a fixed class registry.
 func classFocusSlot(class string) int {
-	h := uint32(2166136261)
+	h := uint32(2166136261) // FNV-1a offset basis
 	for i := 0; i < len(class); i++ {
 		c := class[i]
 		if c >= 'A' && c <= 'Z' {
-			c += 32 // lowercase
+			c += 32 // fold to lowercase without importing unicode
 		}
 		h ^= uint32(c)
-		h *= 16777619
+		h *= 16777619 // FNV prime
 	}
 	return int(h % 10)
 }
 
-// effectiveItemSum returns the battle-relevant item sum for a player: the raw sum
-// with each class's focus slot counted an extra time. Dual-classed players add
-// two focus-slot bonuses (which stack if both classes share the same slot).
+// effectiveItemSum returns the battle-relevant item total for p. The raw
+// itemSum is augmented by the focus-slot item level (counted an extra time)
+// for each class. Dual-classed players add two bonuses; if both classes share
+// the same focus slot the bonus stacks (that slot counts three times total).
 func effectiveItemSum(p *Player) int {
 	sum := p.itemSum() + p.Items[classFocusSlot(p.Class)]
 	if p.Class2 != "" {
@@ -1567,6 +1748,8 @@ func effectiveItemSum(p *Player) int {
 	return sum
 }
 
+// fmtDuration formats a duration given in seconds as a human-readable string
+// in the form "Xh MM m SS s", "MM m SS s", or "SS s".
 func fmtDuration(secs int64) string {
 	if secs <= 0 {
 		return "0s"
