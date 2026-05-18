@@ -27,6 +27,7 @@ import (
 	mathrand "math/rand"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -34,11 +35,13 @@ import (
 	"unicode"
 )
 
-// ircControlChars is the set of IRC formatting/control bytes that must never
-// appear in user-supplied names or be echoed back into channel messages.
+// ircColorRe matches an IRC colour code: \x03 followed by an optional
+// foreground number (1–2 digits) and an optional ,background number.
+var ircColorRe = regexp.MustCompile(`\x03[0-9]{0,2}(?:,[0-9]{1,2})?`)
+
+// ircControlReplacer strips the non-colour IRC formatting bytes.
 var ircControlReplacer = strings.NewReplacer(
 	"\x02", "", // bold
-	"\x03", "", // colour
 	"\x04", "", // hex colour (some clients)
 	"\x0F", "", // reset
 	"\x16", "", // reverse
@@ -48,11 +51,18 @@ var ircControlReplacer = strings.NewReplacer(
 	"\r", "", "\n", "", "\x00", "",
 )
 
+// stripIRC removes all IRC formatting codes from s, including colour codes
+// and their trailing digit arguments, for clean plain-text log output.
+func stripIRC(s string) string {
+	s = ircColorRe.ReplaceAllString(s, "")
+	return ircControlReplacer.Replace(s)
+}
+
 // sanitize strips IRC control codes and ASCII control characters from s and
 // collapses runs of whitespace to a single space. Use for any string that will
 // be echoed back into a channel message.
 func sanitize(s string) string {
-	s = ircControlReplacer.Replace(s)
+	s = stripIRC(s)
 	// Strip remaining ASCII control chars (< 0x20, DEL).
 	s = strings.Map(func(r rune) rune {
 		if unicode.IsControl(r) {

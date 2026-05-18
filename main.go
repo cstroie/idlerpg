@@ -74,7 +74,7 @@ func main() {
 
 	// say sends a message to the game channel and logs a plain-text version.
 	say := func(msg string) {
-		log.Printf(">> %s", ircControlReplacer.Replace(msg))
+		log.Printf(">> %s", stripIRC(msg))
 		conn.Privmsg(*channel, msg)
 	}
 
@@ -86,7 +86,7 @@ func main() {
 		ServerEvents:    *rateServer,
 	}
 	game.setTopic = func(topic string) {
-		log.Printf("TOPIC: %s", ircControlReplacer.Replace(topic))
+		log.Printf("TOPIC: %s", stripIRC(topic))
 		conn.Topic(*channel, topic)
 	}
 
