@@ -147,6 +147,21 @@ var calamityMsgs = []string{
 	fNick + " crosses a scar in space left by something that no longer exists. Phase delayed by " + fBadPct + ".",
 	"The Veil thins near " + fNick + ". What looks back costs them " + fBadPct + " phase.",
 	"Dead Architect code activates in " + fNick + "'s hardware uninvited. Phase delayed by " + fBadPct + ".",
+	fNick + " is bitten by a creature that should not exist in this sector. Phase delayed by " + fBadPct + ".",
+	fNick + " falls into a Drift-pocket and cannot find the exit. Phase delayed by " + fBadPct + ".",
+	fNick + " accidentally broadcasts their position to something hungry. Phase delayed by " + fBadPct + ".",
+	"A void-leech latches onto " + fNick + "'s power core and drains them. Phase delayed by " + fBadPct + ".",
+	fNick + " inhales crystallised void-spores and spends " + fBadPct + " phase recovering.",
+	"The Choir's harmonics overwhelm " + fNick + "'s cognition filters. Phase delayed by " + fBadPct + ".",
+	fNick + " mistakes a Null-shard for a fuel cell. The error costs them " + fBadPct + " phase.",
+	"A parasite from a dead world finds " + fNick + "'s neural stack hospitable. Phase delayed by " + fBadPct + ".",
+	fNick + " triggers a pre-collapse alarm system. Running costs them " + fBadPct + " phase.",
+	"Collapsed space-time briefly turns " + fNick + " inside out. Phase delayed by " + fBadPct + ".",
+	fNick + " is struck by debris from a ship that exploded three centuries ago. Phase delayed by " + fBadPct + ".",
+	"The Drift takes " + fNick + " apart and reassembles them slightly wrong. Phase delayed by " + fBadPct + ".",
+	fNick + " stares into a Null-vortex. It stares back, and charges interest. Phase delayed by " + fBadPct + ".",
+	"An automated Architect weapon system flags " + fNick + " as hostile. Evasion costs " + fBadPct + " phase.",
+	fNick + " develops a compulsive loop in their decision matrix. Phase delayed by " + fBadPct + ".",
 }
 
 var godsendMsgs = []string{
@@ -165,6 +180,21 @@ var godsendMsgs = []string{
 	fNick + " threads a Drift pocket with unusual precision and emerges ahead. Phase advanced by " + fGoodPct + ".",
 	"Something vast and cold passes near " + fNick + " — its wake accelerates them by " + fGoodPct + ".",
 	"Coordinates from a destroyed vessel's last broadcast give " + fNick + " an edge. Phase advanced by " + fGoodPct + ".",
+	fNick + " catches a unicorn-drone from a vanished bio-forge. Phase advanced by " + fGoodPct + ".",
+	fNick + " discovers a secret passage carved through compressed spacetime. Phase advanced by " + fGoodPct + ".",
+	"A tribe of void-adapted survivors teaches " + fNick + " their phase-compression technique. Phase advanced by " + fGoodPct + ".",
+	fNick + " finds a one-use temporal accelerant and does not hesitate. Phase advanced by " + fGoodPct + ".",
+	"An abandoned Architect sub-mind offers " + fNick + " a shortcut in exchange for nothing. Phase advanced by " + fGoodPct + ".",
+	fNick + " tames a Drift-current and rides it forward. Phase advanced by " + fGoodPct + ".",
+	"A radioactive anomaly grants " + fNick + " a sixth sense — briefly useful. Phase advanced by " + fGoodPct + ".",
+	fNick + " barters passage through a Null-fold with a scavenger who asks no questions. Phase advanced by " + fGoodPct + ".",
+	"The last automated act of a dead god-machine benefits " + fNick + " without explanation. Phase advanced by " + fGoodPct + ".",
+	fNick + " upgrades their neural drive using schematics found floating in the Drift. Phase advanced by " + fGoodPct + ".",
+	"A pre-collapse AI awakens for 4 seconds and optimises " + fNick + "'s trajectory. Phase advanced by " + fGoodPct + ".",
+	fNick + " reverse-engineers a phase-loop and escapes three minutes early. Phase advanced by " + fGoodPct + ".",
+	"The Drift forgets " + fNick + " exists for a moment. They use it well. Phase advanced by " + fGoodPct + ".",
+	fNick + " decrypts a dead navigator's final log and finds the fast route. Phase advanced by " + fGoodPct + ".",
+	"Something enormous and indifferent nudges " + fNick + " forward in passing. Phase advanced by " + fGoodPct + ".",
 }
 
 // Item-event templates. Args: (nick, slotName, pct).
@@ -181,6 +211,10 @@ var itemCalamityMsgs = []string{
 	"Phase interference tears apart the lattice of " + fNick + "'s " + fSlot + ". Item degraded by " + fBadPct + ".",
 	"A ghost-signal locks onto " + fNick + "'s " + fSlot + " and doesn't let go. Item degraded by " + fBadPct + ".",
 	"Null-crystallisation spreads across " + fNick + "'s " + fSlot + " before halting. Item degraded by " + fBadPct + ".",
+	"A void-parasite nests inside " + fNick + "'s " + fSlot + " and feeds. Item degraded by " + fBadPct + ".",
+	fNick + "'s " + fSlot + " is partially dissolved by a Drift-acid pocket. Item degraded by " + fBadPct + ".",
+	"Architect countermeasures mistake " + fNick + "'s " + fSlot + " for a threat and act accordingly. Item degraded by " + fBadPct + ".",
+	"A temporal rift briefly ages " + fNick + "'s " + fSlot + " by decades. Item degraded by " + fBadPct + ".",
 }
 
 var itemGodsendMsgs = []string{
@@ -196,6 +230,24 @@ var itemGodsendMsgs = []string{
 	"An Architect micro-fabricator activates near " + fNick + " and reworks their " + fSlot + ". Item improved by " + fGoodPct + ".",
 	"Void-annealing strengthens the core structure of " + fNick + "'s " + fSlot + ". Item improved by " + fGoodPct + ".",
 	fNick + " patches their " + fSlot + " with salvaged Architect plating. It holds better than expected. Item improved by " + fGoodPct + ".",
+	"A Drift-smith of unknown origin refines " + fNick + "'s " + fSlot + " without being asked. Item improved by " + fGoodPct + ".",
+	fNick + " coats their " + fSlot + " in void-resin harvested from a collapsed star. Item improved by " + fGoodPct + ".",
+	"Resonant feedback from a dead relay tower accidentally tempers " + fNick + "'s " + fSlot + ". Item improved by " + fGoodPct + ".",
+	fNick + " trades a ghost-recording for Architect-grade components for their " + fSlot + ". Item improved by " + fGoodPct + ".",
+}
+
+// foundItemMsgs are used when a player stumbles upon a random item.
+// Args: (playerName, slotName, itemLevel, equippedVerb, itemTotal).
+var foundItemMsgs = []string{
+	"%s stumbles upon a %s of level %d in the wreckage of a pre-collapse freighter %s. [item total: %d]",
+	"%s pulls a %s of level %d from a derelict escape pod %s. [item total: %d]",
+	"%s finds a %s of level %d drifting in a debris field %s. [item total: %d]",
+	"%s uncovers a %s of level %d half-buried in solidified void-foam %s. [item total: %d]",
+	"%s pries a %s of level %d loose from a dead Architect construct %s. [item total: %d]",
+	"%s intercepts a supply cache and claims a %s of level %d from it %s. [item total: %d]",
+	"%s extracts a %s of level %d from a sealed Null-crate %s. [item total: %d]",
+	"%s trades a ghost-signal recording for a %s of level %d %s. [item total: %d]",
+	"%s recovers a %s of level %d from a pilot who no longer needs it %s. [item total: %d]",
 }
 
 // handOfGodMsgs[0] = hurt templates, [1] = help templates. Args: (nick, pct).
@@ -1149,8 +1201,8 @@ func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string)
 			levelUps = append(levelUps, p)
 			continue
 		}
-		// ~4/day: random individual event (calamity, godsend, item change, find item).
-		if rateCheck(86400/4, g.Rates.PlayerEvents) {
+		// ~6/day: random individual event (calamity, godsend, item change, find item).
+		if rateCheck(86400/6, g.Rates.PlayerEvents) {
 			msgs = append(msgs, g.randomEvent(p))
 		}
 		// ~1/day: 1v1 challenge against the bot (kept rarer than random events).
@@ -1577,7 +1629,7 @@ func (g *Game) randomEvent(p *Player) string {
 			p.Items[slot] = found
 			equipped = "and equips it"
 		}
-		return fmt.Sprintf("%s stumbles upon a %s of level %d on the road %s! [item total: %d]",
+		return fmt.Sprintf(foundItemMsgs[mathrand.Intn(len(foundItemMsgs))],
 			p.Name, itemSlots[slot], found, equipped, p.itemSum())
 	}
 }
