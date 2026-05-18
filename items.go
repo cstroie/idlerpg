@@ -12,10 +12,10 @@ import (
 // Item rarity tier identifiers. rarityNormal is the empty string so that an
 // item with no special name can be zero-valued without an extra boolean field.
 const (
-	rarityNormal    = ""
-	rarityUncommon  = "Uncommon"
-	rarityRare      = "Rare"
-	rarityLegendary = "Legendary"
+	rarityNormal     = ""
+	rarityReclaimed  = "Reclaimed"  // salvaged, jury-rigged
+	rarityArchitect  = "Architect"  // genuine pre-collapse Architect tech
+	rarityVoidEternal = "Void-eternal" // touched by forces beyond classification
 )
 
 // Minimum player levels required to receive drops of each rarity tier.
@@ -71,11 +71,11 @@ var slotNouns = map[string][]string{
 func generateItemName(rarity, slot string) string {
 	var prefixes []string
 	switch rarity {
-	case rarityUncommon:
+	case rarityReclaimed:
 		prefixes = uncommonPrefixes
-	case rarityRare:
+	case rarityArchitect:
 		prefixes = rarePrefixes
-	case rarityLegendary:
+	case rarityVoidEternal:
 		prefixes = legendaryPrefixes
 	}
 	prefix := prefixes[mathrand.Intn(len(prefixes))]
@@ -129,8 +129,8 @@ func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 			max = min + 1
 		}
 		level = weightedItemLevel(min, max)
-		name = generateItemName(rarityLegendary, slotName)
-		return slot, level, name, rarityLegendary
+		name = generateItemName(rarityVoidEternal, slotName)
+		return slot, level, name, rarityVoidEternal
 	}
 
 	if p.Level >= rareMinLevel && mathrand.Intn(rareChance) == 0 {
@@ -141,8 +141,8 @@ func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 			max = min + 1
 		}
 		level = weightedItemLevel(min, max)
-		name = generateItemName(rarityRare, slotName)
-		return slot, level, name, rarityRare
+		name = generateItemName(rarityArchitect, slotName)
+		return slot, level, name, rarityArchitect
 	}
 
 	if p.Level >= uncommonMinLevel && mathrand.Intn(uncommonChance) == 0 {
@@ -153,8 +153,8 @@ func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 			max = min + 1
 		}
 		level = weightedItemLevel(min, max)
-		name = generateItemName(rarityUncommon, slotName)
-		return slot, level, name, rarityUncommon
+		name = generateItemName(rarityReclaimed, slotName)
+		return slot, level, name, rarityReclaimed
 	}
 
 	// Normal drop: item level is 1 to 1.5× player level, weighted toward lower values.
@@ -167,12 +167,12 @@ func rollItemDrop(p *Player) (slot, level int, name, rarity string) {
 // Returns "" for normal items so callers can append it unconditionally.
 func rarityLabel(rarity string) string {
 	switch rarity {
-	case rarityUncommon:
-		return "[Uncommon]"
-	case rarityRare:
-		return "[** Rare **]"
-	case rarityLegendary:
-		return "[*** LEGENDARY ***]"
+	case rarityReclaimed:
+		return iB + cTeal + "[Reclaimed]" + iC + iB
+	case rarityArchitect:
+		return iB + "\x0312" + "[★ Architect-grade ★]" + iC + iB
+	case rarityVoidEternal:
+		return iB + cPink + "[✦ VOID-ETERNAL ✦]" + iC + iB
 	}
 	return ""
 }

@@ -59,7 +59,10 @@ func main() {
 	}
 
 	connected := make(chan bool)
-	registerHandlers(conn, game, say, connected, *channel, *nick, *nickservPass, *dev)
+	// invitedAt tracks the last time each nick was sent an IRC INVITE so we
+	// never invite the same player more than once per hour.
+	invitedAt := make(map[string]time.Time)
+	registerHandlers(conn, game, say, connected, *channel, *nick, *nickservPass, *dev, invitedAt)
 
 	// Reconnect loop: on disconnect wait 10 s then try again indefinitely.
 	for {
@@ -83,7 +86,21 @@ func main() {
 // say, and the configuration values it needs via closure. The connected channel
 // receives false whenever the connection drops so the reconnect loop can fire.
 func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected chan bool,
-	channel, botNick, nickservPass string, dev bool) {
+	channel, botNick, nickservPass string, dev bool, invitedAt map[string]time.Time) {
+
+	// maybeInvite sends an IRC INVITE to nick if they are a registered player
+	// not currently in the channel, and have not been invited within the last hour.
+	maybeInvite := func(c *irc.Conn, nick string) {
+		if !game.IsKnownOffline(nick) {
+			return
+		}
+		key := strings.ToLower(nick)
+		if time.Since(invitedAt[key]) < time.Hour {
+			return
+		}
+		invitedAt[key] = time.Now()
+		c.Raw(fmt.Sprintf("INVITE %s %s", nick, channel))
+	}
 
 	conn.HandleFunc("connected", func(c *irc.Conn, line *irc.Line) {
 		log.Println("Connected, joining", channel)
@@ -153,6 +170,9 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 		}
 		reply := func(msg string) { conn.Privmsg(replyTo, msg) }
 		dispatchCommand(src, fields, game, say, reply)
+		if !isChannel(ch) {
+			maybeInvite(c, extractNick(src))
+		}
 	})
 
 	conn.HandleFunc("disconnected", func(c *irc.Conn, line *irc.Line) { connected <- false })

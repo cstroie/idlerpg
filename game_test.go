@@ -247,7 +247,7 @@ func TestEffectiveItemSum(t *testing.T) {
 func TestCmdRegisterBasic(t *testing.T) {
 	g := newTestGame()
 	msg := g.CmdRegister("Alice!a@h", "Warrior", "pass123")
-	if !strings.Contains(msg, "Alice") || !strings.Contains(msg, "registered") {
+	if !strings.Contains(msg, "Alice") || !strings.Contains(msg, "void") {
 		t.Errorf("unexpected register message: %q", msg)
 	}
 	if _, ok := g.players["alice"]; !ok {
@@ -718,7 +718,7 @@ func TestBuildTopicWithPlayers(t *testing.T) {
 	if !strings.Contains(topic, "Alice") {
 		t.Errorf("topic should contain top player, got %q", topic)
 	}
-	if !strings.Contains(topic, "1/1") {
-		t.Errorf("topic should show 1/1 online, got %q", topic)
+	if !strings.Contains(topic, "idling") {
+		t.Errorf("topic should show idling count, got %q", topic)
 	}
 }

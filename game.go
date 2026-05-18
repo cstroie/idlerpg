@@ -40,161 +40,229 @@ var itemSlots = [10]string{
 	"tunic", "gloves", "leggings", "shield", "boots",
 }
 
+// IRC text-formatting constants for player-visible messages.
+// Standard mIRC colour/bold/italic codes supported by virtually all clients.
+const (
+	iB = "\x02" // bold toggle
+	iI = "\x1D" // italic toggle
+	iC = "\x03" // end colour
+	iR = "\x0F" // reset all
+
+	cRed    = "\x0304" // red          – damage / bad events
+	cTeal   = "\x0310" // teal         – phase gain / good events
+	cCyan   = "\x0311" // light cyan   – player nicks
+	cOrange = "\x0307" // orange       – battle rolls
+	cPink   = "\x0313" // pink/magenta – Protocol ZERO
+	cLime   = "\x0309" // lime green   – quest / team win
+
+	fNick    = iB + cCyan + "%s" + iC + iB          // bold cyan nick
+	fBadPct  = iB + cRed + "%d%%" + iC + iB         // bold red %
+	fGoodPct = iB + cTeal + "%d%%" + iC + iB        // bold teal %
+	fPct     = iB + "%d%%" + iB                     // bold neutral %
+	fSlot    = iI + "%s" + iI                       // italic slot name
+	fLvl     = iB + "%d" + iB                       // bold item level
+	fRoll    = iB + cOrange + "[%d/%d]" + iC + iB   // bold orange roll
+	fBot     = iB + cPink + "Protocol ZERO" + iC + iB
+	fNullI   = iB + cPink + "Null-instance" + iC + iB
+	fDesc    = iI + "%s" + iI // italic quest description
+)
+
 // Random-event message templates. Each uses fmt.Sprintf with (nick, pct) args.
 var calamityMsgs = []string{
-	"%s's chrono-anchor destabilises in a cascade failure. TTL increased by %d%%.",
-	"A tendril of the Drift brushes %s. They lose time they cannot recover. TTL increased by %d%%.",
-	"The Deep Signal bleeds into %s's neural feed. TTL increased by %d%%.",
-	"%s is caught in a Null-tide. Forward momentum collapses. TTL increased by %d%%.",
-	"Something beyond the Veil notices %s — briefly. The attention costs them %d%%.",
-	"A dead star's echo reaches %s at the worst moment. TTL increased by %d%%.",
-	"%s's phase-lock stutters. Lost in a loop they cannot name. TTL increased by %d%%.",
-	"Entropic flux eats through %s's schedule. TTL increased by %d%%.",
-	"The Pale Architects mark %s in passing. Their interest is not welcome. TTL increased by %d%%.",
-	"A ghost-transmission from a fallen world drowns %s in static. TTL increased by %d%%.",
+	fNick + "'s chrono-anchor destabilises in a cascade failure. Phase delayed by " + fBadPct + ".",
+	"A tendril of the Drift brushes " + fNick + ". They lose time they cannot recover. Phase delayed by " + fBadPct + ".",
+	"The Deep Signal bleeds into " + fNick + "'s neural feed. Phase delayed by " + fBadPct + ".",
+	fNick + " is caught in a Null-tide. Forward momentum collapses. Phase delayed by " + fBadPct + ".",
+	"Something beyond the Veil notices " + fNick + " — briefly. The attention costs them " + fBadPct + " phase.",
+	"A dead star's echo reaches " + fNick + " at the worst moment. Phase delayed by " + fBadPct + ".",
+	fNick + "'s phase-lock stutters. Lost in a loop they cannot name. Phase delayed by " + fBadPct + ".",
+	"Entropic flux consumes " + fNick + "'s advancement window. Phase delayed by " + fBadPct + ".",
+	"The Pale Architects mark " + fNick + " in passing. Their interest is not welcome. Phase delayed by " + fBadPct + ".",
+	"A ghost-transmission from a fallen world drowns " + fNick + " in static. Phase delayed by " + fBadPct + ".",
+	"The Null-tide rises and catches " + fNick + " mid-stride. Phase delayed by " + fBadPct + ".",
+	"A resonance echo from the Collapse reverberates through " + fNick + "'s systems. Phase delayed by " + fBadPct + ".",
+	fNick + " crosses a scar in space left by something that no longer exists. Phase delayed by " + fBadPct + ".",
+	"The Veil thins near " + fNick + ". What looks back costs them " + fBadPct + " phase.",
+	"Dead Architect code activates in " + fNick + "'s hardware uninvited. Phase delayed by " + fBadPct + ".",
 }
 
 var godsendMsgs = []string{
-	"%s intercepts a pre-collapse navigation burst. TTL reduced by %d%%.",
-	"A fold in local spacetime carries %s forward unexpectedly. TTL reduced by %d%%.",
-	"%s decodes a shortcut buried in ancient Architect schematics. TTL reduced by %d%%.",
-	"The Drift parts briefly around %s. They move with sudden clarity. TTL reduced by %d%%.",
-	"%s reads a ghost-transmission from a dead civilisation. The knowledge cuts %d%% from their path.",
-	"A Null-eddy reverses around %s, pushing them forward. TTL reduced by %d%%.",
-	"The Signal stutters — %s slips through the gap. TTL reduced by %d%%.",
-	"%s finds a functioning relay beacon from before the Collapse. TTL reduced by %d%%.",
-	"Residual energy from a Pale Architect transit carries %s ahead. TTL reduced by %d%%.",
-	"%s extracts a route-optimisation from a dead ship's black box. TTL reduced by %d%%.",
+	fNick + " intercepts a pre-collapse navigation burst. Phase advanced by " + fGoodPct + ".",
+	"A fold in local spacetime carries " + fNick + " forward unexpectedly. Phase advanced by " + fGoodPct + ".",
+	fNick + " decodes a shortcut buried in ancient Architect schematics. Phase advanced by " + fGoodPct + ".",
+	"The Drift parts briefly around " + fNick + ". They move with sudden clarity. Phase advanced by " + fGoodPct + ".",
+	fNick + " reads a ghost-transmission from a dead civilisation. The knowledge drives their phase forward by " + fGoodPct + ".",
+	"A Null-eddy reverses around " + fNick + ", pushing them forward. Phase advanced by " + fGoodPct + ".",
+	"The Signal stutters — " + fNick + " slips through the gap. Phase advanced by " + fGoodPct + ".",
+	fNick + " finds a functioning relay beacon from before the Collapse. Phase advanced by " + fGoodPct + ".",
+	"Residual energy from a Pale Architect transit carries " + fNick + " ahead. Phase advanced by " + fGoodPct + ".",
+	fNick + " extracts a route-optimisation from a dead ship's black box. Phase advanced by " + fGoodPct + ".",
+	"The void opens and closes in " + fNick + "'s favour for exactly three seconds. Phase advanced by " + fGoodPct + ".",
+	"A surviving Architect sub-process identifies " + fNick + " as an asset and assists. Phase advanced by " + fGoodPct + ".",
+	fNick + " threads a Drift pocket with unusual precision and emerges ahead. Phase advanced by " + fGoodPct + ".",
+	"Something vast and cold passes near " + fNick + " — its wake accelerates them by " + fGoodPct + ".",
+	"Coordinates from a destroyed vessel's last broadcast give " + fNick + " an edge. Phase advanced by " + fGoodPct + ".",
 }
 
-// Item-event templates use (nick, slotName, pct) args.
+// Item-event templates. Args: (nick, slotName, pct).
 var itemCalamityMsgs = []string{
-	"%s's %s is corroded by entropic flux. Item level reduced by %d%%.",
-	"A Null tendril phases through %s's %s, leaving it degraded. Item level reduced by %d%%.",
-	"%s's %s catastrophically vents during a proximity event. Item level reduced by %d%%.",
-	"The Deep Signal resonates with %s's %s — badly. Item level reduced by %d%%.",
-	"Drift exposure warps %s's %s beyond easy repair. Item level reduced by %d%%.",
-	"A micro-collapse tears through %s's %s. Item level reduced by %d%%.",
-	"%s's %s takes a direct hit from a void-fragment. Item level reduced by %d%%.",
-	"The Pale Architects' passing disrupts %s's %s. Item level reduced by %d%%.",
+	fNick + "'s " + fSlot + " is corroded by entropic flux. Item degraded by " + fBadPct + ".",
+	"A Null tendril phases through " + fNick + "'s " + fSlot + ", leaving it weakened. Item degraded by " + fBadPct + ".",
+	fNick + "'s " + fSlot + " catastrophically vents during a proximity event. Item degraded by " + fBadPct + ".",
+	"The Deep Signal resonates with " + fNick + "'s " + fSlot + " — badly. Item degraded by " + fBadPct + ".",
+	"Drift exposure warps " + fNick + "'s " + fSlot + " beyond easy repair. Item degraded by " + fBadPct + ".",
+	"A micro-collapse tears through " + fNick + "'s " + fSlot + ". Item degraded by " + fBadPct + ".",
+	fNick + "'s " + fSlot + " takes a direct hit from a void-fragment. Item degraded by " + fBadPct + ".",
+	"The Pale Architects' passing disrupts " + fNick + "'s " + fSlot + ". Item degraded by " + fBadPct + ".",
+	"Unknown radiation from a dead star erodes " + fNick + "'s " + fSlot + ". Item degraded by " + fBadPct + ".",
+	"Phase interference tears apart the lattice of " + fNick + "'s " + fSlot + ". Item degraded by " + fBadPct + ".",
+	"A ghost-signal locks onto " + fNick + "'s " + fSlot + " and doesn't let go. Item degraded by " + fBadPct + ".",
+	"Null-crystallisation spreads across " + fNick + "'s " + fSlot + " before halting. Item degraded by " + fBadPct + ".",
 }
 
 var itemGodsendMsgs = []string{
-	"%s reverse-engineers Architect threading into their %s. Item level increased by %d%%.",
-	"A scavenger trades hard-won knowledge — %s's %s is upgraded. Item level increased by %d%%.",
-	"%s's %s absorbs resonant energy from a nearby collapse. Item level increased by %d%%.",
-	"Void exposure unexpectedly crystallises %s's %s. Item level increased by %d%%.",
-	"%s adapts pre-collapse alloys into their %s. Item level increased by %d%%.",
-	"A ghost-signal carries upgrade schematics for %s's %s. Item level increased by %d%%.",
-	"Phase-lock recalibration significantly improves %s's %s. Item level increased by %d%%.",
-	"%s's %s bonds with residual Null-energy in an unexpected improvement. Item level increased by %d%%.",
+	fNick + " reverse-engineers Architect threading into their " + fSlot + ". Item improved by " + fGoodPct + ".",
+	"A scavenger trades hard-won schematics — " + fNick + "'s " + fSlot + " is upgraded. Item improved by " + fGoodPct + ".",
+	fNick + "'s " + fSlot + " absorbs resonant energy from a nearby collapse. Item improved by " + fGoodPct + ".",
+	"Void exposure unexpectedly crystallises " + fNick + "'s " + fSlot + ". Item improved by " + fGoodPct + ".",
+	fNick + " adapts pre-collapse alloys into their " + fSlot + ". Item improved by " + fGoodPct + ".",
+	"A ghost-signal carries upgrade schematics for " + fNick + "'s " + fSlot + ". Item improved by " + fGoodPct + ".",
+	"Phase-lock recalibration significantly improves " + fNick + "'s " + fSlot + ". Item improved by " + fGoodPct + ".",
+	fNick + "'s " + fSlot + " bonds with residual Null-energy in an unexpected improvement. Item improved by " + fGoodPct + ".",
+	"Drift-tempered metallurgy seeps into " + fNick + "'s " + fSlot + " — an accident that helps. Item improved by " + fGoodPct + ".",
+	"An Architect micro-fabricator activates near " + fNick + " and reworks their " + fSlot + ". Item improved by " + fGoodPct + ".",
+	"Void-annealing strengthens the core structure of " + fNick + "'s " + fSlot + ". Item improved by " + fGoodPct + ".",
+	fNick + " patches their " + fSlot + " with salvaged Architect plating. It holds better than expected. Item improved by " + fGoodPct + ".",
 }
 
-// handOfGodMsgs[0] = Entity-hurt templates, handOfGodMsgs[1] = Entity-help templates.
-// Each uses (nick, pct) args.
+// handOfGodMsgs[0] = hurt templates, [1] = help templates. Args: (nick, pct).
 var handOfGodMsgs = [2][]string{
 	{
-		"The Pale Architects turn their gaze on %s. Their attention is not a gift. TTL increased by %d%%.",
-		"Something reaches through the Veil and sets %s back %d%%. It does not explain itself.",
-		"The Deep Signal locks onto %s. They lose %d%% fighting free of it.",
-		"A Null-sovereign brushes past %s. The encounter costs them %d%%.",
-		"The Drift takes an interest in %s. By the time it loses interest, %d%% is gone.",
+		"The Pale Architects turn their gaze on " + fNick + ". Their attention is not a gift. Phase delayed by " + fBadPct + ".",
+		"Something reaches through the Veil and sets " + fNick + " back " + fBadPct + " phase. It does not explain itself.",
+		"The Deep Signal locks onto " + fNick + ". They lose " + fBadPct + " phase fighting free of it.",
+		"A Null-sovereign brushes past " + fNick + ". The encounter costs them " + fBadPct + " phase.",
+		"The Drift takes an interest in " + fNick + ". By the time it loses interest, " + fBadPct + " phase is gone.",
+		"The Entity known only as the Choir reaches through the static to adjust " + fNick + "'s trajectory. Phase delayed by " + fBadPct + ".",
+		"A Pale Architect construct runs diagnostics on " + fNick + ". The process is invasive. Phase delayed by " + fBadPct + ".",
 	},
 	{
-		"An Architect relay pulses near %s. They ride the shockwave forward by %d%%.",
-		"The Drift recedes from %s without warning. They gain %d%% in the sudden clarity.",
-		"%s intercepts a ghost-transmission from a dead god-machine. The knowledge is worth %d%%.",
-		"Something vast and indifferent passes near %s — they are briefly carried in its wake. TTL reduced by %d%%.",
-		"A pre-collapse AI broadcasts a single optimisation burst. %s catches it. TTL reduced by %d%%.",
+		"An Architect relay pulses near " + fNick + ". They ride the shockwave forward by " + fGoodPct + " phase.",
+		"The Drift recedes from " + fNick + " without warning. They gain " + fGoodPct + " phase in the sudden clarity.",
+		fNick + " intercepts a ghost-transmission from a dead god-machine. The knowledge is worth " + fGoodPct + " phase.",
+		"Something vast and indifferent passes near " + fNick + " — they are briefly carried in its wake. Phase advanced by " + fGoodPct + ".",
+		"A pre-collapse AI broadcasts a single optimisation burst. " + fNick + " catches it. Phase advanced by " + fGoodPct + ".",
+		"The Signal aligns for " + fNick + " — an anomaly. Whatever caused it does not repeat. Phase advanced by " + fGoodPct + ".",
+		"A dead Architect's final automated act benefits " + fNick + ". Phase advanced by " + fGoodPct + ". It will not happen again.",
 	},
 }
 
-// battleMsgs are picked at random for 1v1 battle announcements.
-// Args: winner, wRoll, wSum, loser, lRoll, lSum, critNote, pct.
+// battleMsgs: 1v1 announcements. Args: winner, wRoll, wSum, loser, lRoll, lSum, critNote, pct.
 var battleMsgs = []string{
-	"%s [%d/%d] tears through %s [%d/%d]'s defences.%s TTL swing: %d%%.",
-	"%s [%d/%d] overwhelms %s [%d/%d] in close-range contact.%s TTL adjusted: %d%%.",
-	"%s [%d/%d] finds the gap in %s [%d/%d]'s pattern.%s TTL swing: %d%%.",
-	"%s [%d/%d] outmanoeuvres %s [%d/%d] — the exchange is brief and brutal.%s TTL: %d%%.",
-	"%s [%d/%d] drives through %s [%d/%d]'s guard without slowing.%s TTL adjusted: %d%%.",
-	"%s [%d/%d] strips %s [%d/%d]'s timing apart.%s TTL swing: %d%%.",
+	fNick + " " + fRoll + " tears through " + fNick + " " + fRoll + "'s defences.%s Phase swing: " + fPct + ".",
+	fNick + " " + fRoll + " overwhelms " + fNick + " " + fRoll + " in close contact.%s Phase shift: " + fPct + ".",
+	fNick + " " + fRoll + " finds the gap in " + fNick + " " + fRoll + "'s pattern.%s Phase swing: " + fPct + ".",
+	fNick + " " + fRoll + " outmanoeuvres " + fNick + " " + fRoll + " — brief and brutal.%s Phase: " + fPct + ".",
+	fNick + " " + fRoll + " drives through " + fNick + " " + fRoll + "'s guard without slowing.%s Phase shift: " + fPct + ".",
+	fNick + " " + fRoll + " strips " + fNick + " " + fRoll + "'s timing apart.%s Phase swing: " + fPct + ".",
+	fNick + " " + fRoll + " reads " + fNick + " " + fRoll + " before the engagement starts.%s Phase: " + fPct + ".",
+	fNick + " " + fRoll + " lands first and doesn't let " + fNick + " " + fRoll + " recover.%s Phase swing: " + fPct + ".",
+	fNick + " " + fRoll + " locks " + fNick + " " + fRoll + " into a losing exchange.%s Phase shift: " + fPct + ".",
+	fNick + " " + fRoll + " collapses " + fNick + " " + fRoll + "'s opening gambit and punishes it.%s Phase: " + fPct + ".",
 }
 
-// critNoteMsgs are inserted into battleMsgs when a critical hit occurs.
+// critNoteMsgs are inserted as %s into battleMsgs on a critical hit.
 var critNoteMsgs = []string{
-	" Phase-burst crit!",
-	" Null-resonance crit!",
-	" Void-crack crit!",
-	" Deep Signal crit!",
-	" Entropy spike — crit!",
+	" " + iB + cRed + "Phase-burst crit!" + iC + iB,
+	" " + iB + cRed + "Null-resonance crit!" + iC + iB,
+	" " + iB + cRed + "Void-crack crit!" + iC + iB,
+	" " + iB + cRed + "Deep Signal crit!" + iC + iB,
+	" " + iB + cRed + "Entropy spike — crit!" + iC + iB,
+	" " + iB + cRed + "Drift-fracture crit!" + iC + iB,
+	" " + iB + cRed + "Pale Architect crit!" + iC + iB,
 }
 
-// botBattleWinMsgs and botBattleLossMsgs are for fights against Protocol ZERO.
-// Args: nick, pRoll, pSum, botRoll, botSum.
+// botBattle messages. Args: nick, pRoll, pSum, botRoll, botSum.
 var botBattleWinMsgs = []string{
-	"%s [%d/%d] punches through Protocol ZERO [%d/%d]. TTL reduced by 20%%.",
-	"%s [%d/%d] dismantles Protocol ZERO [%d/%d]'s defences. TTL reduced by 20%%.",
-	"%s [%d/%d] overwhelms the Null-instance [%d/%d] — for now. TTL reduced by 20%%.",
-	"%s [%d/%d] finds the crack in Protocol ZERO [%d/%d] and exploits it. TTL reduced by 20%%.",
+	fNick + " " + fRoll + " punches through " + fBot + " " + fRoll + ". Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
+	fNick + " " + fRoll + " dismantles " + fBot + "'s defences " + fRoll + ". Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
+	fNick + " " + fRoll + " overwhelms the " + fNullI + " " + fRoll + " — for now. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
+	fNick + " " + fRoll + " finds the crack in " + fBot + " " + fRoll + " and exploits it. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
+	fNick + " " + fRoll + " outmanoeuvres " + fBot + " " + fRoll + " in a clean exchange. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
+	fNick + " " + fRoll + " takes the " + fNullI + " " + fRoll + " apart without mercy. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
 }
 
 var botBattleLossMsgs = []string{
-	"%s [%d/%d] is repelled by Protocol ZERO [%d/%d]. TTL increased by 10%%.",
-	"%s [%d/%d] cannot breach the Null-instance [%d/%d]. TTL increased by 10%%.",
-	"%s [%d/%d] shatters against Protocol ZERO [%d/%d] and is thrown back. TTL increased by 10%%.",
-	"%s [%d/%d] exhausts every advantage against Protocol ZERO [%d/%d]. TTL increased by 10%%.",
+	fNick + " " + fRoll + " is repelled by " + fBot + " " + fRoll + ". Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
+	fNick + " " + fRoll + " cannot breach the " + fNullI + " " + fRoll + ". Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
+	fNick + " " + fRoll + " shatters against " + fBot + " " + fRoll + " and is thrown back. Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
+	fNick + " " + fRoll + " exhausts every advantage against " + fBot + " " + fRoll + ". Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
+	fNick + " " + fRoll + " finds no weakness in " + fBot + " " + fRoll + ". The retreat is costly. Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
+	fNick + " " + fRoll + " is systematically dismantled by the " + fNullI + " " + fRoll + ". Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
 }
 
-// stealEquipMsgs and stealDiscardMsgs cover post-battle item theft.
-// Args: winner, loser, itemDesc, itemLevel.
+// stealEquipMsgs and stealDiscardMsgs: post-battle item theft. Args: winner, loser, itemDesc, itemLevel.
 var stealEquipMsgs = []string{
-	"%s strips %s's %s (level %d) and integrates it.",
-	"%s extracts %s's %s (level %d) in the chaos and slots it in.",
-	"%s tears %s's %s (level %d) free and makes it their own.",
-	"%s exploits the opening to claim %s's %s (level %d). It fits.",
+	fNick + " strips " + fNick + "'s " + fSlot + " (lvl " + fLvl + ") and integrates it.",
+	fNick + " extracts " + fNick + "'s " + fSlot + " (lvl " + fLvl + ") in the chaos and slots it in.",
+	fNick + " tears " + fNick + "'s " + fSlot + " (lvl " + fLvl + ") free and makes it their own.",
+	fNick + " exploits the opening to claim " + fNick + "'s " + fSlot + " (lvl " + fLvl + "). It fits.",
+	fNick + " rips " + fNick + "'s " + fSlot + " (lvl " + fLvl + ") from the wreckage. Upgrade accepted.",
+	fNick + " seizes " + fNick + "'s " + fSlot + " (lvl " + fLvl + ") before the dust settles. Better.",
 }
 
 var stealDiscardMsgs = []string{
-	"%s strips %s's %s (level %d) — inferior to their own. Left in the void.",
-	"%s takes %s's %s (level %d) but finds it lacking. Discarded.",
-	"%s seizes %s's %s (level %d), examines it, drops it. Not worth the mass.",
+	fNick + " strips " + fNick + "'s " + fSlot + " (lvl " + fLvl + ") — inferior to their own. Left in the void.",
+	fNick + " takes " + fNick + "'s " + fSlot + " (lvl " + fLvl + ") but finds it lacking. Discarded.",
+	fNick + " seizes " + fNick + "'s " + fSlot + " (lvl " + fLvl + "), examines it, drops it. Not worth the mass.",
+	fNick + " checks " + fNick + "'s " + fSlot + " (lvl " + fLvl + "). Below spec. Abandoned.",
+	fNick + " takes " + fNick + "'s " + fSlot + " (lvl " + fLvl + "), scans it, vents it into the void.",
 }
 
-// teamBattleOpenMsgs announce a team skirmish.
-// Args: winners, wSum, losers, lSum, wRoll, lRoll.
+// teamBattleOpenMsgs: team skirmish announcement. Args: winners, wSum, losers, lSum, wRoll, lRoll.
 var teamBattleOpenMsgs = []string{
-	"Skirmish! [%s] (%d) clash with [%s] (%d) — rolls %d vs %d.",
-	"Team contact! [%s] (%d) vs [%s] (%d). Rolls: %d vs %d.",
-	"Convergence: [%s] (%d) and [%s] (%d) meet in open space. Rolls: %d vs %d.",
-	"Engagement logged: [%s] (%d) vs [%s] (%d). Outcome rolls: %d vs %d.",
+	"Skirmish! [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ") clash with [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ") — rolls " + iB + cOrange + "%d vs %d" + iC + iB + ".",
+	"Team contact! [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ") vs [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + "). Rolls: " + iB + cOrange + "%d vs %d" + iC + iB + ".",
+	"Convergence: [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ") and [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ") meet in open space. Rolls: " + iB + cOrange + "%d vs %d" + iC + iB + ".",
+	"Engagement logged: [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ") vs [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + "). Rolls: " + iB + cOrange + "%d vs %d" + iC + iB + ".",
+	"Formation clash! [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ") drives into [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + "). Rolls: " + iB + cOrange + "%d vs %d" + iC + iB + ".",
+	"Contact. [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ") and [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ") — no avoiding it. Rolls: " + iB + cOrange + "%d vs %d" + iC + iB + ".",
 }
 
-// teamBattleWinMsgs announce the winning team. Args: winners.
+// teamBattleWinMsgs: winning team announcement. Args: winners.
 var teamBattleWinMsgs = []string{
-	"[%s] break through. TTL: -20%% of weakest member's remaining time.",
-	"[%s] hold the line and advance. TTL reduced by 20%% of weakest.",
-	"[%s] take the exchange — cleanly. TTL: -20%% of weakest.",
-	"[%s] collapse the opposing formation. TTL drops by 20%% of weakest.",
+	"[" + iB + cLime + "%s" + iC + iB + "] break through. Phase: " + iB + cTeal + "-20%%" + iC + iB + " (weakest anchor).",
+	"[" + iB + cLime + "%s" + iC + iB + "] hold the line and advance. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest).",
+	"[" + iB + cLime + "%s" + iC + iB + "] take the exchange — cleanly. Phase: " + iB + cTeal + "-20%%" + iC + iB + " (weakest).",
+	"[" + iB + cLime + "%s" + iC + iB + "] collapse the opposing formation. Phase drops " + iB + cTeal + "20%%" + iC + iB + " from weakest anchor.",
+	"[" + iB + cLime + "%s" + iC + iB + "] establish fire superiority and press it. Phase: " + iB + cTeal + "-20%%" + iC + iB + ".",
+	"[" + iB + cLime + "%s" + iC + iB + "] execute the engagement without error. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest).",
 }
 
-// encounterMsgs announce a surprise grid encounter.
-// Args: nick1, nick2, x, y.
+// encounterMsgs: surprise grid collision. Args: nick1, nick2, x, y.
 var encounterMsgs = []string{
-	"%s and %s cross paths at (%d,%d) — neither expected it.",
-	"%s and %s occupy the same scar in space at (%d,%d).",
-	"%s and %s collide at (%d,%d). The void watches.",
-	"Proximity alert: %s and %s at (%d,%d). One of them will regret this.",
-	"%s and %s surface at the same coordinates (%d,%d).",
-	"%s and %s find themselves sharing the same dead zone at (%d,%d).",
+	fNick + " and " + fNick + " cross paths at (" + iB + "%d,%d" + iB + ") — neither expected it.",
+	fNick + " and " + fNick + " occupy the same scar in space at (" + iB + "%d,%d" + iB + ").",
+	fNick + " and " + fNick + " collide at (" + iB + "%d,%d" + iB + "). The void watches.",
+	"Proximity alert: " + fNick + " and " + fNick + " at (" + iB + "%d,%d" + iB + "). One of them will regret this.",
+	fNick + " and " + fNick + " surface at the same coordinates (" + iB + "%d,%d" + iB + ").",
+	fNick + " and " + fNick + " find themselves sharing the same dead zone at (" + iB + "%d,%d" + iB + ").",
+	"The Drift deposits " + fNick + " and " + fNick + " at (" + iB + "%d,%d" + iB + "). Neither asked for this.",
+	"Sensors confirm: " + fNick + " and " + fNick + " at (" + iB + "%d,%d" + iB + "). Resolution required.",
+	fNick + " and " + fNick + " emerge from the static at (" + iB + "%d,%d" + iB + ") simultaneously.",
+	"Something herds " + fNick + " and " + fNick + " together at (" + iB + "%d,%d" + iB + "). It watches.",
 }
 
-// questReachedMsgs announce a quester arriving at grid coordinates.
-// Args: nick, qx, qy.
+// questReachedMsgs: quester arrives at grid target. Args: nick, qx, qy.
 var questReachedMsgs = []string{
-	"%s punches through to the objective coordinates (%d,%d).",
-	"%s arrives at (%d,%d). One step closer.",
-	"%s locks onto (%d,%d) — the signal is strong here.",
-	"%s reaches (%d,%d). Holding position.",
+	fNick + " punches through to the objective coordinates (" + iB + "%d,%d" + iB + ").",
+	fNick + " arrives at (" + iB + "%d,%d" + iB + "). One step closer.",
+	fNick + " locks onto (" + iB + "%d,%d" + iB + ") — the signal is strong here.",
+	fNick + " reaches (" + iB + "%d,%d" + iB + "). Holding position.",
+	fNick + " confirms arrival at (" + iB + "%d,%d" + iB + "). Waiting for the others.",
+	fNick + " burns through to (" + iB + "%d,%d" + iB + "). The coordinates hold.",
+	fNick + " threads the Drift and emerges at (" + iB + "%d,%d" + iB + ").",
+	fNick + " reaches the marked position (" + iB + "%d,%d" + iB + "). The Signal is stronger here.",
 }
 
 // Quest start/resolve message pools. Arg orders match the call sites exactly.
@@ -214,31 +282,36 @@ var alignNames = map[int8]string{
 	AlignGood:    "good",
 }
 
-// Good-alignment event templates use (nick1, nick2, pct) args (the triggering
-// player is nick1; their randomly chosen partner is nick2).
+// goodEventMsgs: good-alignment pair event. Args: (nick1, nick2, pct).
 var goodEventMsgs = []string{
-	"%s and %s establish a hardened link through the noise. Shared intel accelerates both by %d%%.",
-	"A resistance cell connects %s and %s. They push forward together by %d%%.",
-	"%s and %s exchange route data through a dying relay. Both gain %d%%.",
-	"Against the static, %s and %s find each other's signal. Both advance by %d%%.",
-	"A burst-transmission between %s and %s slips past Entity surveillance. Both gain %d%%.",
+	fNick + " and " + fNick + " establish a hardened link through the noise. Shared intel accelerates both by " + fGoodPct + ".",
+	"A resistance cell connects " + fNick + " and " + fNick + ". They push forward together by " + fGoodPct + ".",
+	fNick + " and " + fNick + " exchange route data through a dying relay. Both gain " + fGoodPct + ".",
+	"Against the static, " + fNick + " and " + fNick + " find each other's signal. Both advance by " + fGoodPct + ".",
+	"A burst-transmission between " + fNick + " and " + fNick + " slips past Entity surveillance. Both gain " + fGoodPct + ".",
+	fNick + " shields " + fNick + " from a Null-eddy. The goodwill is reciprocated — both advance by " + fGoodPct + ".",
+	fNick + " and " + fNick + " synchronise phase-locks for a brief window. Efficiency gain: " + fGoodPct + ".",
+	fNick + " and " + fNick + " share coordinates through an encrypted channel. Both gain " + fGoodPct + ".",
 }
 
-// Evil steal templates use (evilNick, victimNick, slotName, itemLevel) args.
+// evilStealMsgs: evil alignment item theft. Args: (evilNick, victimNick, slotName, itemLevel).
 var evilStealMsgs = []string{
-	"%s transmits a targeting signal — %s's %s (level %d) goes dark.",
-	"%s exploits the Drift's passage to strip %s's %s (level %d).",
-	"%s uses Entity-derived methods to extract %s's %s (level %d) without resistance.",
-	"Moving through the Null-tide, %s tears %s's %s (level %d) away clean.",
+	fNick + " transmits a targeting signal — " + fNick + "'s " + fSlot + " (level " + fLvl + ") goes dark.",
+	fNick + " exploits the Drift's passage to strip " + fNick + "'s " + fSlot + " (level " + fLvl + ").",
+	fNick + " uses Entity-derived methods to extract " + fNick + "'s " + fSlot + " (level " + fLvl + ") without resistance.",
+	"Moving through the Null-tide, " + fNick + " tears " + fNick + "'s " + fSlot + " (level " + fLvl + ") away clean.",
+	fNick + " phases through " + fNick + "'s position and leaves with their " + fSlot + " (level " + fLvl + ").",
+	fNick + " activates something inherited from the Null and takes " + fNick + "'s " + fSlot + " (level " + fLvl + ").",
 }
 
-// forsakenMsgs are used when an Entity-aligned player finds no target or is
-// punished by the compact. Args: (nick, pct).
+// forsakenMsgs: evil-alignment punishment. Args: (nick, pct).
 var forsakenMsgs = []string{
-	"The Entity %s served discards them without ceremony. TTL increased by %d%%.",
-	"%s's alignment with the Null extracts its toll. TTL increased by %d%%.",
-	"The Signal turns on %s. Their compact with darkness has a price. TTL increased by %d%%.",
-	"%s reaches for the Drift and finds it reaches back — hungrily. TTL increased by %d%%.",
+	"The Entity " + fNick + " served discards them without ceremony. Phase delayed by " + fBadPct + ".",
+	fNick + "'s alignment with the Null extracts its toll. Phase delayed by " + fBadPct + ".",
+	"The Signal turns on " + fNick + ". Their compact with darkness has a price. Phase delayed by " + fBadPct + ".",
+	fNick + " reaches for the Drift and finds it reaches back — hungrily. Phase delayed by " + fBadPct + ".",
+	"The Entity " + fNick + " courted has grown tired of them. Phase delayed by " + fBadPct + ".",
+	"What " + fNick + " bargained with collected today. Phase delayed by " + fBadPct + ".",
 }
 
 // questDescs are the mission objectives attached to quests.
@@ -258,6 +331,14 @@ var questDescs = []string{
 	"silence the automated defence grid protecting the tomb of the last Architect",
 	"reach the Drift-stranded ship before the Null-tide rises and takes it completely",
 	"seal the rift the Entity tore through local space before the cold gets in",
+	"intercept the rogue Architect construct before it reaches the inhabited ring",
+	"retrieve Pale Architect schematics from the derelict station in the exclusion zone",
+	"shut down the Null-broadcast before it propagates beyond the dead system",
+	"stabilise the collapsing Drift corridor before the next transit window closes",
+	"destroy the Entity-seed germinating in the abandoned colony's deep foundations",
+	"map the Veil-breach coordinates before they shift again and are lost",
+	"hold the perimeter at the Fracture Point until evacuation is complete",
+	"recover the corrupted Architect AI core before the Entity absorbs it",
 }
 
 // Quest eligibility thresholds.
@@ -458,7 +539,7 @@ func (g *Game) OnJoin(src string) {
 	g.mu.Unlock()
 	if p != nil {
 		g.save()
-		g.say(fmt.Sprintf("%s, the level %d %s, has joined IdleRPG at (%d,%d)! Next level in %s.",
+		g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+", enters the void at ("+iB+"%d,%d"+iB+"). Next phase: "+iB+"%s"+iB+".",
 			p.Nick, p.Level, p.Class, p.X, p.Y, fmtDuration(p.TTL)))
 		g.noteEvent(fmt.Sprintf("%s (lvl %d) joined", p.Nick, p.Level))
 	}
@@ -588,6 +669,11 @@ func (g *Game) CmdRegister(src, class, pass string) string {
 		PassHash: hashPass(salt, pass),
 		Level:    0,
 		TTL:      g.ttlForLevel(0),
+		// Auto-login: the player is clearly present since they just registered.
+		Online: true,
+		Addr:   src,
+		X:      mathrand.Intn(gridSize),
+		Y:      mathrand.Intn(gridSize),
 	}
 	// Hold the lock across both the existence check and the insert to prevent
 	// two concurrent !register calls from creating duplicate nicks (TOCTOU).
@@ -601,7 +687,8 @@ func (g *Game) CmdRegister(src, class, pass string) string {
 		return fmt.Sprintf("Nick %s is already registered.", nick)
 	}
 	g.save()
-	return fmt.Sprintf("%s, the %s, has registered for IdleRPG! Next level in %s.", nick, class, fmtDuration(p.TTL))
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the "+iI+"%s"+iI+", enters the void at ("+iB+"%d,%d"+iB+"). Next phase: "+iB+"%s"+iB+".",
+		nick, class, p.X, p.Y, fmtDuration(p.TTL))
 }
 
 // CmdLogin authenticates the player whose current IRC nick matches a registered
@@ -614,7 +701,7 @@ func (g *Game) CmdLogin(src, pass string) string {
 	p, ok := g.players[key]
 	g.mu.Unlock()
 	if !ok {
-		return "No character registered with that nick. Use !register <nick> <class> <pass> first."
+		return "No character registered with that nick. Use !register <class> <pass> first."
 	}
 	// Use constant-time comparison to avoid leaking password length or prefix
 	// information through timing differences.
@@ -626,7 +713,7 @@ func (g *Game) CmdLogin(src, pass string) string {
 	p.Addr = src
 	g.mu.Unlock()
 	g.save()
-	return fmt.Sprintf("%s, the level %d %s, has logged in! Next level in %s.", nick, p.Level, p.Class, fmtDuration(p.TTL))
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+", logged in. Next phase: "+iB+"%s"+iB+".", nick, p.Level, p.Class, fmtDuration(p.TTL))
 }
 
 // CmdLogout marks the calling player offline. No penalty is applied.
@@ -673,7 +760,7 @@ func (g *Game) CmdAlign(src, align string) string {
 	g.mu.Unlock()
 	g.save()
 	if changed {
-		return fmt.Sprintf("%s is now %s. Changing alignment costs time — TTL adjusted.", p.Nick, alignNames[newAlign])
+		return fmt.Sprintf("%s is now %s. Changing alignment costs time — phase adjusted.", p.Nick, alignNames[newAlign])
 	}
 	return fmt.Sprintf("%s is already %s.", p.Nick, alignNames[newAlign])
 }
@@ -752,7 +839,7 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 			focusDisplay += "+" + slot2
 		}
 	}
-	return fmt.Sprintf("%s, the %s level %d %s [%s]%s — TTL: %s — Items: %d (focus: %s)",
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the %s level "+iB+"%d"+iB+" "+iI+"%s"+iI+" [%s]%s — phase: "+iB+"%s"+iB+" — Items: "+iB+"%d"+iB+" (focus: %s)",
 		p.Nick, alignNames[p.Alignment], p.Level, classDisplay, status, questInfo,
 		fmtDuration(p.TTL), p.itemSum(), focusDisplay)
 }
@@ -872,6 +959,15 @@ func (g *Game) CmdOnline() string {
 	}
 	sort.Strings(parts)
 	return fmt.Sprintf("Online (%d): %s", len(parts), strings.Join(parts, ", "))
+}
+
+// IsKnownOffline reports whether nick belongs to a registered player who is not
+// currently in the game channel. Used to decide whether to send an IRC INVITE.
+func (g *Game) IsKnownOffline(nick string) bool {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	p, ok := g.players[strings.ToLower(nick)]
+	return ok && !p.Online
 }
 
 // tick is the main game loop. It fires once per second for as long as the stop
@@ -1127,16 +1223,16 @@ func (g *Game) doLevelUp(p *Player) {
 	if itemRarity != rarityNormal {
 		label = " " + rarityLabel(itemRarity)
 	}
-	g.say(fmt.Sprintf("%s has attained level %d! Next level in %s. They find a %s of level %d%s%s [item total: %d].",
+	g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%d"+iB+". Next phase: "+iB+"%s"+iB+". They find a "+iI+"%s"+iI+" of level "+iB+"%d"+iB+"%s%s [item total: "+iB+"%d"+iB+"].",
 		nick, level, fmtDuration(ttl), itemDesc, itemLevel, equipped, label, isum))
 
 	switch itemRarity {
-	case rarityLegendary:
-		g.noteEvent(fmt.Sprintf("✦ %s found %s — LEGENDARY!", nick, itemName))
-	case rarityRare:
-		g.noteEvent(fmt.Sprintf("★ %s found %s (Rare) at lvl %d", nick, itemName, level))
-	case rarityUncommon:
-		g.noteEvent(fmt.Sprintf("%s reached lvl %d, found %s", nick, level, itemName))
+	case rarityVoidEternal:
+		g.noteEvent(fmt.Sprintf("✦ %s found %s — VOID-ETERNAL!", nick, itemName))
+	case rarityArchitect:
+		g.noteEvent(fmt.Sprintf("★ %s found %s (Architect-grade) at lvl %d", nick, itemName, level))
+	case rarityReclaimed:
+		g.noteEvent(fmt.Sprintf("%s reached lvl %d, found %s (Reclaimed)", nick, level, itemName))
 	default:
 		g.noteEvent(fmt.Sprintf("%s reached lvl %d", nick, level))
 	}
@@ -1511,9 +1607,9 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 			Reached:       make(map[string]bool),
 		}
 		gridStarts := []string{
-			"Grid mission: %s must converge on (%d,%d) to %s. Window: %s.",
-			"Navigation alert — %s: reach (%d,%d) and %s. Time remaining: %s.",
-			"Coordinate lock: %s — objective (%d,%d): %s. You have %s.",
+			"🗺 Grid mission: " + iB + "%s" + iB + " must converge on (" + iB + "%d,%d" + iB + ") to " + iI + "%s" + iI + ". Window: " + iB + "%s" + iB + ".",
+			"Navigation alert — " + iB + "%s" + iB + ": reach (" + iB + "%d,%d" + iB + ") and " + iI + "%s" + iI + ". Time remaining: " + iB + "%s" + iB + ".",
+			"Coordinate lock: " + iB + "%s" + iB + " — objective (" + iB + "%d,%d" + iB + "): " + iI + "%s" + iI + ". You have " + iB + "%s" + iB + ".",
 		}
 		return []string{
 			fmt.Sprintf(gridStarts[mathrand.Intn(len(gridStarts))],
@@ -1528,9 +1624,9 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 		OnlineAtStart: onlineAtStart,
 	}
 	timeStarts := []string{
-		"Mission alert — %s have been tasked to %s. Window: %s. Do not fail.",
-		"Deployment: %s — objective: %s. Time remaining: %s.",
-		"The call goes out to %s: %s. You have %s.",
+		"⚡ Mission alert — " + iB + "%s" + iB + " have been tasked to " + iI + "%s" + iI + ". Window: " + iB + "%s" + iB + ". Do not fail.",
+		"Deployment: " + iB + "%s" + iB + " — objective: " + iI + "%s" + iI + ". Time remaining: " + iB + "%s" + iB + ".",
+		"The call goes out to " + iB + "%s" + iB + ": " + iI + "%s" + iI + ". You have " + iB + "%s" + iB + ".",
 	}
 	return []string{
 		fmt.Sprintf(timeStarts[mathrand.Intn(len(timeStarts))],
@@ -1573,9 +1669,9 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		}
 		if quest.IsGrid {
 			gridSuccess := []string{
-				"Grid mission complete. %s converged on (%d,%d) and %s. TTL reduced by 25%%.",
-				"%s reached (%d,%d) — objective met: %s. TTL: -25%%.",
-				"All questers at (%d,%d). %s completed their mission to %s. TTL: -25%%.",
+				"✔ Grid mission complete. " + iB + "%s" + iB + " converged on (" + iB + "%d,%d" + iB + ") and " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
+				iB + "%s" + iB + " reached (" + iB + "%d,%d" + iB + ") — objective met: " + iI + "%s" + iI + ". Phase: " + iB + cTeal + "-25%%" + iC + iB + ".",
+				"All questers at (" + iB + "%d,%d" + iB + "). " + iB + "%s" + iB + " completed their mission to " + iI + "%s" + iI + ". Phase: " + iB + cTeal + "-25%%" + iC + iB + ".",
 			}
 			idx := mathrand.Intn(len(gridSuccess))
 			if idx == 2 {
@@ -1584,9 +1680,9 @@ func (g *Game) resolveQuest(online []*Player) []string {
 			return []string{fmt.Sprintf(gridSuccess[idx], strings.Join(names, ", "), quest.QX, quest.QY, quest.Desc)}
 		}
 		timeSuccess := []string{
-			"Mission complete. %s succeeded in their objective to %s. TTL reduced by 25%%.",
-			"%s return from the mission to %s. Against expectations, they made it. TTL: -25%%.",
-			"Confirmed: %s completed the objective — %s. TTL reduction: 25%%.",
+			"✔ Mission complete. " + iB + "%s" + iB + " succeeded in their objective to " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
+			iB + "%s" + iB + " return from the mission to " + iI + "%s" + iI + ". Against expectations, they made it. Phase: " + iB + cTeal + "-25%%" + iC + iB + ".",
+			"Confirmed: " + iB + "%s" + iB + " completed the objective — " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
 		}
 		return []string{
 			fmt.Sprintf(timeSuccess[mathrand.Intn(len(timeSuccess))],
@@ -1609,8 +1705,8 @@ func (g *Game) resolveQuest(online []*Player) []string {
 			suffix = fmt.Sprintf("only %s made it to (%d,%d)", strings.Join(reached, ", "), quest.QX, quest.QY)
 		}
 		gridFail := []string{
-			"Grid mission failed. %s did not all reach (%d,%d) to %s (%s). Everyone present suffers.",
-			"The rendezvous at (%d,%d) never happened. %s failed to %s (%s). Penalty for all.",
+			"✘ Grid mission failed. " + iB + "%s" + iB + " did not all reach (" + iB + "%d,%d" + iB + ") to " + iI + "%s" + iI + " (%s). Everyone present suffers.",
+			"The rendezvous at (" + iB + "%d,%d" + iB + ") never happened. " + iB + "%s" + iB + " failed to " + iI + "%s" + iI + " (%s). Penalty for all.",
 		}
 		idx := mathrand.Intn(len(gridFail))
 		if idx == 1 {
@@ -1619,9 +1715,9 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		return []string{fmt.Sprintf(gridFail[idx], strings.Join(names, ", "), quest.QX, quest.QY, quest.Desc, suffix)}
 	}
 	timeFail := []string{
-		"Mission failed. %s did not complete: %s. All present suffer a penalty.",
-		"%s abandoned the mission to %s. The consequences fall on everyone still here.",
-		"The objective — %s — is lost. %s did not hold. Everyone pays.",
+		"✘ Mission failed. " + iB + "%s" + iB + " did not complete: " + iI + "%s" + iI + ". All present suffer a penalty.",
+		iB + "%s" + iB + " abandoned the mission to " + iI + "%s" + iI + ". The consequences fall on everyone still here.",
+		"The objective — " + iI + "%s" + iI + " — is lost. " + iB + "%s" + iB + " did not hold. Everyone pays.",
 	}
 	idx := mathrand.Intn(len(timeFail))
 	if idx == 2 {
@@ -1831,12 +1927,12 @@ func extractNick(src string) string {
 // idleFlavors are short strings appended to the channel topic when no players
 // are registered or when everyone is offline and there is no recent event.
 var idleFlavors = []string{
-	"The realm awaits brave heroes.",
-	"Silence fills the land — idle and grow strong.",
-	"Fortune favours the patient.",
-	"The gods grow restless for new champions.",
-	"Adventure calls... but patience pays.",
-	"Even legends began by doing nothing.",
+	iI + "The Drift is quiet. For now." + iI,
+	iI + "Silence in the void — idle and endure." + iI,
+	iI + "The Pale Architects do not reward haste." + iI,
+	iI + "The Signal waits for new carriers." + iI,
+	iI + "Patience is the only armour the Null respects." + iI,
+	iI + "Even the Entities began by doing nothing." + iI,
 }
 
 // updateTopic rebuilds and sets the channel topic from current game state.
@@ -1864,14 +1960,14 @@ func (g *Game) buildTopic() string {
 		}
 	}
 
-	parts := []string{"⚔ IdleRPG"}
+	parts := []string{iB + "⚔ IdleRPG" + iB}
 	if online == 0 && total == 0 {
 		return strings.Join(append(parts, idleFlavors[mathrand.Intn(len(idleFlavors))]), " | ")
 	}
 
-	parts = append(parts, fmt.Sprintf("%d/%d idling", online, total))
+	parts = append(parts, fmt.Sprintf(iB+"%d"+iB+"/"+iB+"%d"+iB+" idling", online, total))
 	if top != nil {
-		parts = append(parts, fmt.Sprintf("Top: %s lvl %d %s", top.Nick, top.Level, top.Class))
+		parts = append(parts, fmt.Sprintf("Top: "+iB+cCyan+"%s"+iC+iB+" lvl "+iB+"%d"+iB+" "+iI+"%s"+iI, top.Nick, top.Level, top.Class))
 	}
 	if qp := g.questTopicPart(); qp != "" {
 		parts = append(parts, qp)
@@ -1892,10 +1988,10 @@ func (g *Game) questTopicPart() string {
 	}
 	remaining := fmtDuration(int64(time.Until(g.quest.EndsAt).Seconds()))
 	if g.quest.IsGrid {
-		return fmt.Sprintf("Grid quest: (%d,%d) — %s [%s left]",
+		return fmt.Sprintf("🗺 Grid: ("+iB+"%d,%d"+iB+") — "+iI+"%s"+iI+" ["+iB+"%s"+iB+"]",
 			g.quest.QX, g.quest.QY, g.quest.Desc, remaining)
 	}
-	return fmt.Sprintf("Quest: %s [%s left]", g.quest.Desc, remaining)
+	return fmt.Sprintf("⚡ "+iI+"%s"+iI+" ["+iB+"%s"+iB+"]", g.quest.Desc, remaining)
 }
 
 // noteEvent records msg as the most recent notable event and refreshes the
