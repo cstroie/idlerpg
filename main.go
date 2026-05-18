@@ -125,20 +125,23 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 		if len(fields) == 0 {
 			return
 		}
-		// Default reply target is the channel; PMs reply to the sender's nick.
-		replyTo := ch
-		if ch == botNick {
-			replyTo = extractNick(src)
-		}
-		if ch == channel {
-			// Penalise the player for speaking (commands included — talking is
-			// not idling). Then nudge them to use PM for commands so the channel
-			// stays clean and they avoid the penalty going forward.
+		// In IRC, channel names always start with '#', '&', '!', or '+'.
+		// Anything else is a DM addressed directly to the bot, regardless of
+		// what the bot's current nick is (it may differ from botNick if a
+		// collision forced a rename to e.g. "GoIdle_").
+		replyTo := extractNick(src) // default: reply to sender
+		if !isChannel(ch) {
+			// DM — reply goes back to the sender as a DM.
+		} else if ch == channel {
+			// Channel message — penalise for talking and redirect command
+			// replies to the sender's PM so the channel stays clean.
 			game.OnPrivmsg(src, text)
 			if strings.HasPrefix(text, "!") {
-				replyTo = extractNick(src)
 				conn.Privmsg(replyTo, "Tip: use PM for bot commands to avoid talk penalties.")
 			}
+		} else {
+			// Some other channel the bot happens to be in — ignore.
+			return
 		}
 		reply := func(msg string) { conn.Privmsg(replyTo, msg) }
 		dispatchCommand(src, fields, game, say, reply)
@@ -301,6 +304,18 @@ func dispatchGuildCommand(src string, fields []string, g *Game, say, reply func(
 	case "!gtop":
 		reply(g.CmdGTop())
 	}
+}
+
+// isChannel reports whether name is an IRC channel (starts with #, &, !, or +).
+func isChannel(name string) bool {
+	if len(name) == 0 {
+		return false
+	}
+	switch name[0] {
+	case '#', '&', '!', '+':
+		return true
+	}
+	return false
 }
 
 // optArg returns fields[i] when the slice is long enough, otherwise "".
