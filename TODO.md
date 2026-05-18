@@ -36,8 +36,7 @@
 
 ## Bugs / Polish
 
-- [ ] `CmdRegister` accepts any nick argument rather than enforcing the caller's IRC nick —
-      decide whether this is intended (character names ≠ IRC nicks) or a bug.
+- [x] `CmdRegister` now uses the caller's IRC nick; the explicit nick argument was removed.
 - [x] Quest failure should not penalise players who joined after the quest started.
 - [x] `save()` acquires the lock internally but callers sometimes hold it already —
       audit all call sites to ensure no double-lock.

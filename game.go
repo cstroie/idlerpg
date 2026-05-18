@@ -453,14 +453,12 @@ func (g *Game) OnPrivmsg(src, text string) {
 	}
 }
 
-// CmdRegister creates a new character with the given nick, class, and password.
-// The registration result is announced publicly; the password itself is never
-// echoed. Returns an error string if the nick is already taken or inputs are
-// out of range.
-func (g *Game) CmdRegister(src, nick, class, pass string) string {
-	if len(nick) == 0 || len(nick) > 30 {
-		return "Nick must be 1–30 characters."
-	}
+// CmdRegister creates a new character for the calling IRC nick with the given
+// class and password. The nick is taken from src (nick!user@host) so it always
+// matches the caller's current IRC nick, preventing nick squatting. The
+// registration result is announced publicly; the password is never echoed.
+func (g *Game) CmdRegister(src, class, pass string) string {
+	nick := extractNick(src)
 	if len(class) == 0 || len(class) > 50 {
 		return "Class must be 1–50 characters."
 	}

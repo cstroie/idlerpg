@@ -37,7 +37,7 @@ All flags:
 
 | Command | Description |
 |---------|-------------|
-| `!register <nick> <class> <pass>` | Create a character. Class may be multiple words; password is always last. |
+| `!register <class> <pass>` | Create a character using your current IRC nick. Class may be multiple words; password is always last. |
 | `!login <pass>` | Log in manually (auto-login happens on channel join). |
 | `!logout` | Go offline. |
 | `!dualclass <class>` | Choose a permanent second class at level 12+. |

@@ -232,7 +232,7 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 
 // helpText is the single-line command reference sent in response to !help.
 const helpText = "IdleRPG commands: " +
-	"!register <nick> <class> <pass> | " +
+	"!register <class> <pass> | " +
 	"!login <pass> | !logout | " +
 	"!dualclass <class> (level 12+, permanent) | " +
 	"!align <good|neutral|evil> | " +
@@ -240,15 +240,16 @@ const helpText = "IdleRPG commands: " +
 	"!gcreate <name> | !ginvite <nick> | !gaccept | !gdecline | " +
 	"!gleave | !gkick <nick> | !ginfo [name] | !gtop"
 
-// dispatchRegister handles !register <nick> <class…> <pass>.
+// dispatchRegister handles !register <class…> <pass>.
 // The class may span multiple words; the password is always the final token.
+// The character nick is taken from the caller's IRC nick.
 func dispatchRegister(src string, fields []string, g *Game, say, reply func(string)) {
-	if len(fields) < 4 {
-		reply("Usage: !register <nick> <class> <pass>")
+	if len(fields) < 3 {
+		reply("Usage: !register <class> <pass>")
 		return
 	}
-	class := strings.Join(fields[2:len(fields)-1], " ")
-	say(g.CmdRegister(src, fields[1], class, fields[len(fields)-1]))
+	class := strings.Join(fields[1:len(fields)-1], " ")
+	say(g.CmdRegister(src, class, fields[len(fields)-1]))
 }
 
 // dispatchLogin handles !login <pass>, replying privately so the outcome

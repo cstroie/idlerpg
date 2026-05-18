@@ -47,7 +47,7 @@ Build and test with `go build ./...` and `go test ./...`.
 
 | Command | Description |
 |---------|-------------|
-| `!register <nick> <class> <pass>` | Create a character |
+| `!register <class> <pass>` | Create a character (nick taken from IRC nick) |
 | `!login <pass>` | Log in manually |
 | `!logout` | Go offline |
 | `!dualclass <class>` | Choose a second class at level 12+ (permanent) |
