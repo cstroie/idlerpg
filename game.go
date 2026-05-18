@@ -42,52 +42,162 @@ var itemSlots = [10]string{
 
 // Random-event message templates. Each uses fmt.Sprintf with (nick, pct) args.
 var calamityMsgs = []string{
-	"%s is forsaken by their deity! TTL increased by %d%%.",
-	"A wandering curse latches onto %s. TTL increased by %d%%.",
-	"%s trips over a root and loses precious time. TTL increased by %d%%.",
-	"Fate frowns upon %s. TTL increased by %d%%.",
-	"A black cat crosses %s's path. TTL increased by %d%%.",
-	"%s is visited by ill omens. TTL increased by %d%%.",
+	"%s's chrono-anchor destabilises in a cascade failure. TTL increased by %d%%.",
+	"A tendril of the Drift brushes %s. They lose time they cannot recover. TTL increased by %d%%.",
+	"The Deep Signal bleeds into %s's neural feed. TTL increased by %d%%.",
+	"%s is caught in a Null-tide. Forward momentum collapses. TTL increased by %d%%.",
+	"Something beyond the Veil notices %s — briefly. The attention costs them %d%%.",
+	"A dead star's echo reaches %s at the worst moment. TTL increased by %d%%.",
+	"%s's phase-lock stutters. Lost in a loop they cannot name. TTL increased by %d%%.",
+	"Entropic flux eats through %s's schedule. TTL increased by %d%%.",
+	"The Pale Architects mark %s in passing. Their interest is not welcome. TTL increased by %d%%.",
+	"A ghost-transmission from a fallen world drowns %s in static. TTL increased by %d%%.",
 }
 
 var godsendMsgs = []string{
-	"The gods smile upon %s! TTL reduced by %d%%.",
-	"A ray of divine light blesses %s! TTL reduced by %d%%.",
-	"%s finds a shortcut on the road to glory! TTL reduced by %d%%.",
-	"Fortune favours %s today! TTL reduced by %d%%.",
-	"A celestial wind carries %s forward! TTL reduced by %d%%.",
-	"%s receives a blessing from the heavens! TTL reduced by %d%%.",
+	"%s intercepts a pre-collapse navigation burst. TTL reduced by %d%%.",
+	"A fold in local spacetime carries %s forward unexpectedly. TTL reduced by %d%%.",
+	"%s decodes a shortcut buried in ancient Architect schematics. TTL reduced by %d%%.",
+	"The Drift parts briefly around %s. They move with sudden clarity. TTL reduced by %d%%.",
+	"%s reads a ghost-transmission from a dead civilisation. The knowledge cuts %d%% from their path.",
+	"A Null-eddy reverses around %s, pushing them forward. TTL reduced by %d%%.",
+	"The Signal stutters — %s slips through the gap. TTL reduced by %d%%.",
+	"%s finds a functioning relay beacon from before the Collapse. TTL reduced by %d%%.",
+	"Residual energy from a Pale Architect transit carries %s ahead. TTL reduced by %d%%.",
+	"%s extracts a route-optimisation from a dead ship's black box. TTL reduced by %d%%.",
 }
 
 // Item-event templates use (nick, slotName, pct) args.
 var itemCalamityMsgs = []string{
-	"%s's %s was damaged in an ambush! Item level reduced by %d%%.",
-	"A thief nicks %s's %s in the marketplace! Item level reduced by %d%%.",
-	"%s drops their %s down a well. Item level reduced by %d%%.",
-	"Rust claims %s's %s. Item level reduced by %d%%.",
+	"%s's %s is corroded by entropic flux. Item level reduced by %d%%.",
+	"A Null tendril phases through %s's %s, leaving it degraded. Item level reduced by %d%%.",
+	"%s's %s catastrophically vents during a proximity event. Item level reduced by %d%%.",
+	"The Deep Signal resonates with %s's %s — badly. Item level reduced by %d%%.",
+	"Drift exposure warps %s's %s beyond easy repair. Item level reduced by %d%%.",
+	"A micro-collapse tears through %s's %s. Item level reduced by %d%%.",
+	"%s's %s takes a direct hit from a void-fragment. Item level reduced by %d%%.",
+	"The Pale Architects' passing disrupts %s's %s. Item level reduced by %d%%.",
 }
 
 var itemGodsendMsgs = []string{
-	"%s polishes their %s to a shine! Item level increased by %d%%.",
-	"A wandering smith improves %s's %s! Item level increased by %d%%.",
-	"Divine favour enchants %s's %s! Item level increased by %d%%.",
-	"%s finds a rare component and upgrades their %s! Item level increased by %d%%.",
+	"%s reverse-engineers Architect threading into their %s. Item level increased by %d%%.",
+	"A scavenger trades hard-won knowledge — %s's %s is upgraded. Item level increased by %d%%.",
+	"%s's %s absorbs resonant energy from a nearby collapse. Item level increased by %d%%.",
+	"Void exposure unexpectedly crystallises %s's %s. Item level increased by %d%%.",
+	"%s adapts pre-collapse alloys into their %s. Item level increased by %d%%.",
+	"A ghost-signal carries upgrade schematics for %s's %s. Item level increased by %d%%.",
+	"Phase-lock recalibration significantly improves %s's %s. Item level increased by %d%%.",
+	"%s's %s bonds with residual Null-energy in an unexpected improvement. Item level increased by %d%%.",
 }
 
-// handOfGodMsgs[0] = hurt templates, handOfGodMsgs[1] = help templates.
+// handOfGodMsgs[0] = Entity-hurt templates, handOfGodMsgs[1] = Entity-help templates.
 // Each uses (nick, pct) args.
 var handOfGodMsgs = [2][]string{
 	{
-		"The hand of %s's god reaches down and sets them back %d%%!",
-		"%s has displeased their deity — struck back %d%%!",
-		"A divine rebuke sends %s stumbling backward %d%%!",
+		"The Pale Architects turn their gaze on %s. Their attention is not a gift. TTL increased by %d%%.",
+		"Something reaches through the Veil and sets %s back %d%%. It does not explain itself.",
+		"The Deep Signal locks onto %s. They lose %d%% fighting free of it.",
+		"A Null-sovereign brushes past %s. The encounter costs them %d%%.",
+		"The Drift takes an interest in %s. By the time it loses interest, %d%% is gone.",
 	},
 	{
-		"The hand of %s's god reaches down and pushes them forward %d%%!",
-		"%s basks in divine favour and surges ahead %d%%!",
-		"A celestial nudge propels %s forward %d%%!",
+		"An Architect relay pulses near %s. They ride the shockwave forward by %d%%.",
+		"The Drift recedes from %s without warning. They gain %d%% in the sudden clarity.",
+		"%s intercepts a ghost-transmission from a dead god-machine. The knowledge is worth %d%%.",
+		"Something vast and indifferent passes near %s — they are briefly carried in its wake. TTL reduced by %d%%.",
+		"A pre-collapse AI broadcasts a single optimisation burst. %s catches it. TTL reduced by %d%%.",
 	},
 }
+
+// battleMsgs are picked at random for 1v1 battle announcements.
+// Args: winner, wRoll, wSum, loser, lRoll, lSum, critNote, pct.
+var battleMsgs = []string{
+	"%s [%d/%d] tears through %s [%d/%d]'s defences.%s TTL swing: %d%%.",
+	"%s [%d/%d] overwhelms %s [%d/%d] in close-range contact.%s TTL adjusted: %d%%.",
+	"%s [%d/%d] finds the gap in %s [%d/%d]'s pattern.%s TTL swing: %d%%.",
+	"%s [%d/%d] outmanoeuvres %s [%d/%d] — the exchange is brief and brutal.%s TTL: %d%%.",
+	"%s [%d/%d] drives through %s [%d/%d]'s guard without slowing.%s TTL adjusted: %d%%.",
+	"%s [%d/%d] strips %s [%d/%d]'s timing apart.%s TTL swing: %d%%.",
+}
+
+// critNoteMsgs are inserted into battleMsgs when a critical hit occurs.
+var critNoteMsgs = []string{
+	" Phase-burst crit!",
+	" Null-resonance crit!",
+	" Void-crack crit!",
+	" Deep Signal crit!",
+	" Entropy spike — crit!",
+}
+
+// botBattleWinMsgs and botBattleLossMsgs are for fights against Protocol ZERO.
+// Args: nick, pRoll, pSum, botRoll, botSum.
+var botBattleWinMsgs = []string{
+	"%s [%d/%d] punches through Protocol ZERO [%d/%d]. TTL reduced by 20%%.",
+	"%s [%d/%d] dismantles Protocol ZERO [%d/%d]'s defences. TTL reduced by 20%%.",
+	"%s [%d/%d] overwhelms the Null-instance [%d/%d] — for now. TTL reduced by 20%%.",
+	"%s [%d/%d] finds the crack in Protocol ZERO [%d/%d] and exploits it. TTL reduced by 20%%.",
+}
+
+var botBattleLossMsgs = []string{
+	"%s [%d/%d] is repelled by Protocol ZERO [%d/%d]. TTL increased by 10%%.",
+	"%s [%d/%d] cannot breach the Null-instance [%d/%d]. TTL increased by 10%%.",
+	"%s [%d/%d] shatters against Protocol ZERO [%d/%d] and is thrown back. TTL increased by 10%%.",
+	"%s [%d/%d] exhausts every advantage against Protocol ZERO [%d/%d]. TTL increased by 10%%.",
+}
+
+// stealEquipMsgs and stealDiscardMsgs cover post-battle item theft.
+// Args: winner, loser, itemDesc, itemLevel.
+var stealEquipMsgs = []string{
+	"%s strips %s's %s (level %d) and integrates it.",
+	"%s extracts %s's %s (level %d) in the chaos and slots it in.",
+	"%s tears %s's %s (level %d) free and makes it their own.",
+	"%s exploits the opening to claim %s's %s (level %d). It fits.",
+}
+
+var stealDiscardMsgs = []string{
+	"%s strips %s's %s (level %d) — inferior to their own. Left in the void.",
+	"%s takes %s's %s (level %d) but finds it lacking. Discarded.",
+	"%s seizes %s's %s (level %d), examines it, drops it. Not worth the mass.",
+}
+
+// teamBattleOpenMsgs announce a team skirmish.
+// Args: winners, wSum, losers, lSum, wRoll, lRoll.
+var teamBattleOpenMsgs = []string{
+	"Skirmish! [%s] (%d) clash with [%s] (%d) — rolls %d vs %d.",
+	"Team contact! [%s] (%d) vs [%s] (%d). Rolls: %d vs %d.",
+	"Convergence: [%s] (%d) and [%s] (%d) meet in open space. Rolls: %d vs %d.",
+	"Engagement logged: [%s] (%d) vs [%s] (%d). Outcome rolls: %d vs %d.",
+}
+
+// teamBattleWinMsgs announce the winning team. Args: winners.
+var teamBattleWinMsgs = []string{
+	"[%s] break through. TTL: -20%% of weakest member's remaining time.",
+	"[%s] hold the line and advance. TTL reduced by 20%% of weakest.",
+	"[%s] take the exchange — cleanly. TTL: -20%% of weakest.",
+	"[%s] collapse the opposing formation. TTL drops by 20%% of weakest.",
+}
+
+// encounterMsgs announce a surprise grid encounter.
+// Args: nick1, nick2, x, y.
+var encounterMsgs = []string{
+	"%s and %s cross paths at (%d,%d) — neither expected it.",
+	"%s and %s occupy the same scar in space at (%d,%d).",
+	"%s and %s collide at (%d,%d). The void watches.",
+	"Proximity alert: %s and %s at (%d,%d). One of them will regret this.",
+	"%s and %s surface at the same coordinates (%d,%d).",
+	"%s and %s find themselves sharing the same dead zone at (%d,%d).",
+}
+
+// questReachedMsgs announce a quester arriving at grid coordinates.
+// Args: nick, qx, qy.
+var questReachedMsgs = []string{
+	"%s punches through to the objective coordinates (%d,%d).",
+	"%s arrives at (%d,%d). One step closer.",
+	"%s locks onto (%d,%d) — the signal is strong here.",
+	"%s reaches (%d,%d). Holding position.",
+}
+
+// Quest start/resolve message pools. Arg orders match the call sites exactly.
 
 // Alignment constants. The int8 value is stored in Player.Alignment and
 // affects battle power, crit chance, and daily events.
@@ -107,40 +217,47 @@ var alignNames = map[int8]string{
 // Good-alignment event templates use (nick1, nick2, pct) args (the triggering
 // player is nick1; their randomly chosen partner is nick2).
 var goodEventMsgs = []string{
-	"The light of %s's god shines upon %s and %s! Both surge ahead %d%%.",
-	"%s and %s are united by divine favour! Both gain %d%%.",
-	"The gods bless the fellowship of %s and %s! Both advance %d%%.",
+	"%s and %s establish a hardened link through the noise. Shared intel accelerates both by %d%%.",
+	"A resistance cell connects %s and %s. They push forward together by %d%%.",
+	"%s and %s exchange route data through a dying relay. Both gain %d%%.",
+	"Against the static, %s and %s find each other's signal. Both advance by %d%%.",
+	"A burst-transmission between %s and %s slips past Entity surveillance. Both gain %d%%.",
 }
 
 // Evil steal templates use (evilNick, victimNick, slotName, itemLevel) args.
 var evilStealMsgs = []string{
-	"%s lurks in the shadows and makes off with %s's %s (level %d)!",
-	"%s bribes a corrupt merchant to acquire %s's %s (level %d)!",
-	"Under cover of darkness, %s pilfers %s's %s (level %d)!",
+	"%s transmits a targeting signal — %s's %s (level %d) goes dark.",
+	"%s exploits the Drift's passage to strip %s's %s (level %d).",
+	"%s uses Entity-derived methods to extract %s's %s (level %d) without resistance.",
+	"Moving through the Null-tide, %s tears %s's %s (level %d) away clean.",
 }
 
-// forsakenMsgs are used when an evil player has no good target to steal from,
-// or loses the 50/50 steal roll. Args: (nick, pct).
+// forsakenMsgs are used when an Entity-aligned player finds no target or is
+// punished by the compact. Args: (nick, pct).
 var forsakenMsgs = []string{
-	"%s is forsaken by their dark patron! TTL increased by %d%%.",
-	"The shadows abandon %s. TTL increased by %d%%.",
-	"%s's evil deeds catch up with them. TTL increased by %d%%.",
+	"The Entity %s served discards them without ceremony. TTL increased by %d%%.",
+	"%s's alignment with the Null extracts its toll. TTL increased by %d%%.",
+	"The Signal turns on %s. Their compact with darkness has a price. TTL increased by %d%%.",
+	"%s reaches for the Drift and finds it reaches back — hungrily. TTL increased by %d%%.",
 }
 
-// questDescs are the flavour descriptions attached to quests.
+// questDescs are the mission objectives attached to quests.
 var questDescs = []string{
-	"slay the dragon terrorising the village of Mal'Gorn",
-	"recover the stolen Orb of Aldur from the goblin warrens",
-	"escort the merchant caravan through the Darkwood",
-	"retrieve the ancient tome from the sunken library",
-	"defeat the lich haunting the catacombs beneath Castle Greystone",
-	"find the missing children taken by the forest sprites",
-	"seal the dimensional rift opening near the city of Varek",
-	"break the curse on the village of Mirewood",
-	"purge the corrupted well poisoning the town of Ashfen",
-	"hunt down the bandit king who plagues the northern roads",
-	"recover the holy relic stolen from the Temple of Aeon",
-	"investigate the strange lights appearing over the Grimfen swamp",
+	"breach the Architect relay station before it completes its transmission",
+	"extract the surviving crew from the Drift-touched colony on Kerath IV",
+	"destroy the Null-seed before it consumes the station's reactor core",
+	"decode the pre-collapse star charts buried in the dead ship's memory banks",
+	"sever the Signal tether anchoring the Entity to inhabited space",
+	"retrieve the last intact Architect core from the ruins of the Pale Spire",
+	"purge the Drift infestation spreading through the lower decks of the Vantareth",
+	"recover the black-box recorder from the vessel that crossed the Veil and did not return",
+	"disable the resonance beacon drawing Entities toward the inhabited systems",
+	"escort the last xenobiologist off the compromised research station before it falls",
+	"trace the origin of the ghost-signal looping endlessly through the relay network",
+	"prevent the Pale Choir's convergence at the coordinates marked only as The Wound",
+	"silence the automated defence grid protecting the tomb of the last Architect",
+	"reach the Drift-stranded ship before the Null-tide rises and takes it completely",
+	"seal the rift the Entity tore through local space before the cold gets in",
 }
 
 // Quest eligibility thresholds.
@@ -879,7 +996,7 @@ func (g *Game) tickGrid(online []*Player) (encounterPairs [][2]*Player, msgs []s
 	}
 	if len(encounterPairs) > 0 {
 		ep := encounterPairs[0]
-		msgs = append(msgs, fmt.Sprintf("%s and %s stumble into each other at (%d,%d)!",
+		msgs = append(msgs, fmt.Sprintf(encounterMsgs[mathrand.Intn(len(encounterMsgs))],
 			ep[0].Nick, ep[1].Nick, ep[0].X, ep[0].Y))
 	}
 	return
@@ -897,7 +1014,7 @@ func (g *Game) tickQuestProgress(online []*Player) []string {
 		nick := strings.ToLower(qp.Nick)
 		if !g.quest.Reached[nick] && qp.X == g.quest.QX && qp.Y == g.quest.QY {
 			g.quest.Reached[nick] = true
-			msgs = append(msgs, fmt.Sprintf("%s has reached the quest destination (%d,%d)!",
+			msgs = append(msgs, fmt.Sprintf(questReachedMsgs[mathrand.Intn(len(questReachedMsgs))],
 				qp.Nick, g.quest.QX, g.quest.QY))
 		}
 	}
@@ -1098,9 +1215,9 @@ func (g *Game) battle(a, b *Player) {
 
 	critNote := ""
 	if crit {
-		critNote = " Critical hit!"
+		critNote = critNoteMsgs[mathrand.Intn(len(critNoteMsgs))]
 	}
-	g.say(fmt.Sprintf("%s [%d/%d] battles %s [%d/%d] and wins!%s TTL adjusted by %d%%.",
+	g.say(fmt.Sprintf(battleMsgs[mathrand.Intn(len(battleMsgs))],
 		wName, wRoll, wSum, lName, lRoll, lSum, critNote, pct))
 	if stealMsg != "" {
 		g.say(stealMsg)
@@ -1136,7 +1253,7 @@ func (g *Game) botBattle(p *Player) string {
 		if p.TTL < 1 {
 			p.TTL = 1
 		}
-		return fmt.Sprintf("%s [%d/%d] challenges the bot [%d/%d] and wins! TTL reduced by 20%%.",
+		return fmt.Sprintf(botBattleWinMsgs[mathrand.Intn(len(botBattleWinMsgs))],
 			p.Nick, pRoll, pSum, botRoll, botSum)
 	}
 
@@ -1145,7 +1262,7 @@ func (g *Game) botBattle(p *Player) string {
 		change = 1
 	}
 	p.TTL += change
-	return fmt.Sprintf("%s [%d/%d] challenges the bot [%d/%d] and loses! TTL increased by 10%%.",
+	return fmt.Sprintf(botBattleLossMsgs[mathrand.Intn(len(botBattleLossMsgs))],
 		p.Nick, pRoll, pSum, botRoll, botSum)
 }
 
@@ -1177,10 +1294,10 @@ func (g *Game) tryStealItem(winner, loser *Player) string {
 	if stolen > winner.Items[slot] {
 		winner.Items[slot] = stolen
 		winner.ItemNames[slot] = stolenName
-		return fmt.Sprintf("%s steals %s's %s (level %d) and equips it!",
+		return fmt.Sprintf(stealEquipMsgs[mathrand.Intn(len(stealEquipMsgs))],
 			winner.Nick, loser.Nick, itemDesc, stolen)
 	}
-	return fmt.Sprintf("%s steals %s's %s (level %d) but it's worse than their own — discarded.",
+	return fmt.Sprintf(stealDiscardMsgs[mathrand.Intn(len(stealDiscardMsgs))],
 		winner.Nick, loser.Nick, itemDesc, stolen)
 }
 
@@ -1341,9 +1458,9 @@ func (g *Game) teamBattle(online []*Player) []string {
 	}
 
 	return []string{
-		fmt.Sprintf("Team battle! [%s] (%d) vs [%s] (%d) — rolls %d vs %d.",
+		fmt.Sprintf(teamBattleOpenMsgs[mathrand.Intn(len(teamBattleOpenMsgs))],
 			names(winners), wSum, names(losers), lSum, wRoll, lRoll),
-		fmt.Sprintf("[%s] win! Each winner's TTL drops by 20%% of their weakest member's TTL.", names(winners)),
+		fmt.Sprintf(teamBattleWinMsgs[mathrand.Intn(len(teamBattleWinMsgs))], names(winners)),
 	}
 }
 
@@ -1393,8 +1510,13 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 			QY:            qy,
 			Reached:       make(map[string]bool),
 		}
+		gridStarts := []string{
+			"Grid mission: %s must converge on (%d,%d) to %s. Window: %s.",
+			"Navigation alert — %s: reach (%d,%d) and %s. Time remaining: %s.",
+			"Coordinate lock: %s — objective (%d,%d): %s. You have %s.",
+		}
 		return []string{
-			fmt.Sprintf("Grid quest begun! %s must navigate to (%d,%d) to %s. They have %s.",
+			fmt.Sprintf(gridStarts[mathrand.Intn(len(gridStarts))],
 				strings.Join(names, ", "), qx, qy, desc, fmtDuration(int64(duration.Seconds()))),
 		}
 	}
@@ -1405,8 +1527,13 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 		Desc:          desc,
 		OnlineAtStart: onlineAtStart,
 	}
+	timeStarts := []string{
+		"Mission alert — %s have been tasked to %s. Window: %s. Do not fail.",
+		"Deployment: %s — objective: %s. Time remaining: %s.",
+		"The call goes out to %s: %s. You have %s.",
+	}
 	return []string{
-		fmt.Sprintf("Quest begun! %s have been sent to %s. They must complete it within %s.",
+		fmt.Sprintf(timeStarts[mathrand.Intn(len(timeStarts))],
 			strings.Join(names, ", "), desc, fmtDuration(int64(duration.Seconds()))),
 	}
 }
@@ -1445,13 +1572,24 @@ func (g *Game) resolveQuest(online []*Player) []string {
 			}
 		}
 		if quest.IsGrid {
-			return []string{
-				fmt.Sprintf("Grid quest complete! %s have all reached (%d,%d) and succeeded in their quest to %s! Each receives a 25%% TTL bonus.",
-					strings.Join(names, ", "), quest.QX, quest.QY, quest.Desc),
+			gridSuccess := []string{
+				"Grid mission complete. %s converged on (%d,%d) and %s. TTL reduced by 25%%.",
+				"%s reached (%d,%d) — objective met: %s. TTL: -25%%.",
+				"All questers at (%d,%d). %s completed their mission to %s. TTL: -25%%.",
 			}
+			idx := mathrand.Intn(len(gridSuccess))
+			if idx == 2 {
+				return []string{fmt.Sprintf(gridSuccess[idx], quest.QX, quest.QY, strings.Join(names, ", "), quest.Desc)}
+			}
+			return []string{fmt.Sprintf(gridSuccess[idx], strings.Join(names, ", "), quest.QX, quest.QY, quest.Desc)}
+		}
+		timeSuccess := []string{
+			"Mission complete. %s succeeded in their objective to %s. TTL reduced by 25%%.",
+			"%s return from the mission to %s. Against expectations, they made it. TTL: -25%%.",
+			"Confirmed: %s completed the objective — %s. TTL reduction: 25%%.",
 		}
 		return []string{
-			fmt.Sprintf("Quest complete! %s have succeeded in their quest to %s! Each receives a 25%% TTL bonus.",
+			fmt.Sprintf(timeSuccess[mathrand.Intn(len(timeSuccess))],
 				strings.Join(names, ", "), quest.Desc),
 		}
 	}
@@ -1466,19 +1604,30 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		for nick := range quest.Reached {
 			reached = append(reached, nick)
 		}
-		suffix := "none reached the destination"
+		suffix := "none reached the coordinates"
 		if len(reached) > 0 {
-			suffix = fmt.Sprintf("only %s reached (%d,%d)", strings.Join(reached, ", "), quest.QX, quest.QY)
+			suffix = fmt.Sprintf("only %s made it to (%d,%d)", strings.Join(reached, ", "), quest.QX, quest.QY)
 		}
-		return []string{
-			fmt.Sprintf("Grid quest failed! %s did not all reach (%d,%d) to %s (%s). All online players suffer a penalty!",
-				strings.Join(names, ", "), quest.QX, quest.QY, quest.Desc, suffix),
+		gridFail := []string{
+			"Grid mission failed. %s did not all reach (%d,%d) to %s (%s). Everyone present suffers.",
+			"The rendezvous at (%d,%d) never happened. %s failed to %s (%s). Penalty for all.",
 		}
+		idx := mathrand.Intn(len(gridFail))
+		if idx == 1 {
+			return []string{fmt.Sprintf(gridFail[idx], quest.QX, quest.QY, strings.Join(names, ", "), quest.Desc, suffix)}
+		}
+		return []string{fmt.Sprintf(gridFail[idx], strings.Join(names, ", "), quest.QX, quest.QY, quest.Desc, suffix)}
 	}
-	return []string{
-		fmt.Sprintf("Quest failed! %s did not complete their quest to %s in time. All online players suffer a penalty!",
-			strings.Join(names, ", "), quest.Desc),
+	timeFail := []string{
+		"Mission failed. %s did not complete: %s. All present suffer a penalty.",
+		"%s abandoned the mission to %s. The consequences fall on everyone still here.",
+		"The objective — %s — is lost. %s did not hold. Everyone pays.",
 	}
+	idx := mathrand.Intn(len(timeFail))
+	if idx == 2 {
+		return []string{fmt.Sprintf(timeFail[idx], quest.Desc, strings.Join(names, ", "))}
+	}
+	return []string{fmt.Sprintf(timeFail[idx], strings.Join(names, ", "), quest.Desc)}
 }
 
 // goodAlignmentEvent pairs p with a random good-aligned online partner and

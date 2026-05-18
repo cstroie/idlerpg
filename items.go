@@ -36,33 +36,33 @@ const (
 
 // Prefix word lists for each rarity tier, used by generateItemName.
 var uncommonPrefixes = []string{
-	"Polished", "Superior", "Enchanted", "Gleaming", "Sturdy",
-	"Refined", "Tempered", "Honed", "Fortified", "Keen",
+	"Salvaged", "Hardened", "Reclaimed", "Reinforced", "Patched",
+	"Overclocked", "Jury-rigged", "Stripped", "Tempered", "Corroded",
 }
 
 var rarePrefixes = []string{
-	"Ancient", "Ethereal", "Hallowed", "Runic", "Shadowed",
-	"Arcane", "Spectral", "Veiled", "Infused", "Soulbound",
+	"Void-touched", "Architect", "Signal-bound", "Null-threaded", "Drift-forged",
+	"Echo-scarred", "Phase-locked", "Resonant", "Deep-etched", "Collapsed",
 }
 
 var legendaryPrefixes = []string{
-	"Legendary", "Divine", "Mythical", "Eternal", "Godforged",
-	"Celestial", "Abyssal", "Primordial", "Transcendent", "Undying",
+	"Pale Architect", "Null-sovereign", "Void-eternal", "Signal-core", "Entropy-forged",
+	"Last-light", "Pre-collapse", "Unravelled", "Drift-sovereign", "God-machine",
 }
 
 // slotNouns maps each item slot name to a list of flavourful nouns used as the
-// second word in a generated item name (e.g. "Ethereal Aegis").
+// second word in a generated item name (e.g. "Void-touched Resonator").
 var slotNouns = map[string][]string{
-	"ring":     {"Ring", "Band", "Loop", "Signet", "Coil"},
-	"amulet":   {"Amulet", "Pendant", "Talisman", "Medallion", "Locket"},
-	"charm":    {"Charm", "Token", "Relic", "Fetish", "Totem"},
-	"weapon":   {"Blade", "Staff", "Edge", "Shard", "Fang"},
-	"helm":     {"Crown", "Helm", "Circlet", "Visage", "Diadem"},
-	"tunic":    {"Robe", "Vestment", "Mantle", "Raiment", "Shroud"},
-	"gloves":   {"Gauntlets", "Grips", "Fists", "Bracers", "Claws"},
-	"leggings": {"Greaves", "Legguards", "Cuisses", "Tassets", "Chausses"},
-	"shield":   {"Aegis", "Bulwark", "Ward", "Bastion", "Rampart"},
-	"boots":    {"Treads", "Striders", "Sabatons", "Steps", "Walkers"},
+	"ring":     {"Beacon", "Signet", "Resonator", "Loop", "Band"},
+	"amulet":   {"Core", "Pendant", "Relay", "Tether", "Medallion"},
+	"charm":    {"Shard", "Fragment", "Token", "Sliver", "Splinter"},
+	"weapon":   {"Blade", "Lance", "Resonator", "Edge", "Fang"},
+	"helm":     {"Cortex", "Visor", "Crown", "Caul", "Shroud"},
+	"tunic":    {"Carapace", "Weave", "Mantle", "Liner", "Pall"},
+	"gloves":   {"Gauntlets", "Grips", "Claws", "Bracers", "Fists"},
+	"leggings": {"Greaves", "Plates", "Guards", "Cuisses", "Chausses"},
+	"shield":   {"Barrier", "Ward", "Bulwark", "Aegis", "Shell"},
+	"boots":    {"Treads", "Walkers", "Steps", "Striders", "Sabatons"},
 }
 
 // generateItemName produces a two-word procedural name ("Prefix Noun") for a
