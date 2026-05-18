@@ -811,7 +811,7 @@ func (g *Game) CmdLogin(src, pass string) string {
 	p, ok := g.players[key]
 	g.mu.Unlock()
 	if !ok {
-		return "No character registered with that nick. Use !register <class> <pass> first."
+		return "No character registered with that nick. Use !register <name> <pass> <class> first."
 	}
 	// Use constant-time comparison to avoid leaking password length or prefix
 	// information through timing differences.

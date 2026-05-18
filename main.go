@@ -293,7 +293,7 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 
 // helpText is the single-line command reference sent in response to !help.
 const helpText = "Void Drift commands: " +
-	"!register <class> <pass> | " +
+	"!register <name> <pass> <class> | " +
 	"!login <pass> | !logout | " +
 	"!dualclass <class> (level 12+, permanent) | " +
 	"!align <good|neutral|evil> | " +
