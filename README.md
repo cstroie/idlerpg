@@ -241,6 +241,41 @@ The bot maintains the channel topic with live game state:
 
 The topic updates on player join/part, every level-up, and after significant events (quests, battles, legendary drops, Hand of God).
 
+## Running as a Service
+
+Init files are in the `init/` directory.
+
+### systemd (Linux)
+
+```bash
+# Install binary and create a dedicated user
+install -Dm755 voidrift /usr/local/bin/voidrift
+useradd -r -d /var/lib/voidrift -s /sbin/nologin voidrift
+install -dm750 -o voidrift -g voidrift /var/lib/voidrift
+
+# Install and enable the service
+install -Dm644 init/voidrift.service /etc/systemd/system/voidrift.service
+systemctl daemon-reload
+systemctl enable --now voidrift
+```
+
+Pass additional flags (e.g. `-nickserv`) by editing `ExecStart` in the unit file, or drop an override in `/etc/systemd/system/voidrift.service.d/override.conf`.
+
+### OpenRC (Alpine Linux)
+
+```bash
+# Install binary and create a dedicated user
+install -Dm755 voidrift /usr/local/bin/voidrift
+adduser -S -D -h /var/lib/voidrift -s /sbin/nologin voidrift
+
+# Install and enable the service
+install -Dm755 init/voidrift.openrc /etc/init.d/voidrift
+rc-update add voidrift default
+rc-service voidrift start
+```
+
+Extra flags go in `command_args` inside `/etc/init.d/voidrift`.
+
 ## Contributing
 
 Bug reports and pull requests are welcome. Please:

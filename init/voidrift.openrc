@@ -1,0 +1,25 @@
+#!/sbin/openrc-run
+
+name="voidrift"
+description="Void Drift IRC idle RPG bot"
+
+command="/usr/local/bin/voidrift"
+command_args="-server irc.libera.chat:6667 -nick VoidKeeper -channel \"#voidrift\" -data /var/lib/voidrift/voidrift.json -guilds /var/lib/voidrift/guilds.json"
+command_user="voidrift:voidrift"
+command_background=true
+
+pidfile="/run/${RC_SVCNAME}.pid"
+output_log="/var/log/voidrift/voidrift.log"
+error_log="/var/log/voidrift/voidrift.log"
+
+directory="/var/lib/voidrift"
+
+depend() {
+    need net
+    after firewall
+}
+
+start_pre() {
+    checkpath -d -o voidrift:voidrift -m 0750 /var/lib/voidrift
+    checkpath -d -o voidrift:voidrift -m 0750 /var/log/voidrift
+}

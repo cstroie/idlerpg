@@ -1,0 +1,31 @@
+[Unit]
+Description=Void Drift IRC idle RPG bot
+Documentation=https://github.com/cstroie/voidrift
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=voidrift
+Group=voidrift
+WorkingDirectory=/var/lib/voidrift
+ExecStart=/usr/local/bin/voidrift \
+    -server irc.libera.chat:6667 \
+    -nick VoidKeeper \
+    -channel "#voidrift" \
+    -data /var/lib/voidrift/voidrift.json \
+    -guilds /var/lib/voidrift/guilds.json
+
+Restart=on-failure
+RestartSec=30s
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/voidrift
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target
