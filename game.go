@@ -1449,7 +1449,7 @@ func (g *Game) doLevelUp(p *Player) {
 	if itemRarity != rarityNormal {
 		label = " " + rarityLabel(itemRarity)
 	}
-	g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%d"+iB+". Next phase: "+iB+"%s"+iB+". They find a "+iI+"%s"+iI+" of level "+iB+"%d"+iB+"%s%s [item total: "+iB+"%d"+iB+"].",
+	g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%d"+iB+". Next phase: "+iB+"%s"+iB+". As a level-up reward, they find a "+iI+"%s"+iI+" of level "+iB+"%d"+iB+"%s%s [item total: "+iB+"%d"+iB+"].",
 		name, level, fmtDuration(ttl), itemDesc, itemLevel, equipped, label, isum))
 
 	switch itemRarity {
