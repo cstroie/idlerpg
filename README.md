@@ -43,22 +43,35 @@ You can override connection defaults without editing the Makefile:
 make run SERVER=irc.example.org:6667 NICK=MyBot CHANNEL='#mygame'
 ```
 
-## All Flags
+## Configuration
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `-server` | `irc.libera.chat:6667` | IRC server `host:port` |
-| `-nick` | `VoidKeeper` | Bot nick |
-| `-password` | _(none)_ | Server password |
-| `-ssl` | `false` | Use SSL |
-| `-channel` | `#voidrift` | Game channel |
-| `-data` | `voidrift.json` | Player data file (JSON, created automatically) |
-| `-guilds` | `guilds.json` | Guild data file (JSON, created automatically) |
-| `-nickserv` | _(none)_ | NickServ password — sends `IDENTIFY` on connect |
-| `-dev` | `false` | Dev mode: auto-login channel members on startup and speed up TTL by 5× |
-| `-rate-player` | `1.0` | Per-player event rate multiplier — scales random events and bot-battle challenges (2.0 = twice as often) |
-| `-rate-align` | `1.0` | Alignment event rate multiplier — scales good/evil daily events |
-| `-rate-server` | `1.0` | Server event rate multiplier — scales team battles, guild battles, quests, and Hand of God |
+All settings can be provided as command-line flags, environment variables, or
+(for service deployments) via an env file loaded by the init script. Priority
+order: **flag > env var > compiled-in default**.
+
+### Flags and environment variables
+
+| Flag | Env var | Default | Description |
+|------|---------|---------|-------------|
+| `-server` | `VOIDRIFT_SERVER` | `irc.libera.chat:6667` | IRC server `host:port` |
+| `-nick` | `VOIDRIFT_NICK` | `VoidKeeper` | Bot nick |
+| `-password` | `VOIDRIFT_PASSWORD` | _(none)_ | Server password |
+| `-ssl` | `VOIDRIFT_SSL` | `false` | Use SSL/TLS |
+| `-channel` | `VOIDRIFT_CHANNEL` | `#voidrift` | Game channel |
+| `-data` | `VOIDRIFT_DATA` | `voidrift.json` | Player data file (created automatically) |
+| `-guilds` | `VOIDRIFT_GUILDS` | `guilds.json` | Guild data file (created automatically) |
+| `-nickserv` | `VOIDRIFT_NICKSERV` | _(none)_ | NickServ password — sends `IDENTIFY` on connect |
+| `-dev` | `VOIDRIFT_DEV` | `false` | Dev mode: auto-login channel members on startup and speed up TTL by 5× |
+| `-rate-player` | `VOIDRIFT_RATE_PLAYER` | `1.0` | Per-player event rate multiplier — scales random events and bot battles |
+| `-rate-align` | `VOIDRIFT_RATE_ALIGN` | `1.0` | Alignment event rate multiplier — scales good/evil daily events |
+| `-rate-server` | `VOIDRIFT_RATE_SERVER` | `1.0` | Server event rate multiplier — scales team/guild battles, quests, Hand of God |
+
+### Env file
+
+For service deployments copy `init/voidrift.env.example` to
+`/etc/voidrift/voidrift.env` (mode `0600`, owned by `root`) and set your
+values there. Secrets such as `VOIDRIFT_NICKSERV` and `VOIDRIFT_PASSWORD`
+should only ever live in this file, not on the command line.
 
 ## Player Commands
 
