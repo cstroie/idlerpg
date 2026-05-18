@@ -14,9 +14,9 @@ The old gods are gone. What remains are Entities: the Pale Architects, the Drift
 
 ```bash
 git clone https://github.com/cstroie/voidrift.git
-cd idlerpg
+cd voidrift
 make build
-./idlerpg -server irc.libera.chat:6667 -nick VoidKeeper -channel "#voidrift"
+./voidrift -server irc.libera.chat:6667 -nick VoidKeeper -channel "#voidrift"
 ```
 
 The bot connects, joins the channel, and begins the game loop immediately. Player data is saved automatically to `voidrift.json`; guild data to `guilds.json`.
