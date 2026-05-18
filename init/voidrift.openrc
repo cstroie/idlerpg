@@ -6,13 +6,12 @@ description="Void Drift IRC idle RPG bot"
 # The chroot root is the data directory; the static binary lives inside it.
 CHROOT="/var/lib/voidrift"
 
+# Environment file — copy voidrift.env.example to /etc/voidrift/voidrift.env.
+# Sourced in start_pre before the process launches.
+VOIDRIFT_ENV="/etc/voidrift/voidrift.env"
+
 command="/usr/sbin/chroot"
-command_args="--userspec=voidrift:voidrift ${CHROOT} /voidrift \
-    -server irc.libera.chat:6667 \
-    -nick VoidKeeper \
-    -channel \"#voidrift\" \
-    -data /voidrift.json \
-    -guilds /guilds.json"
+command_args="--userspec=voidrift:voidrift ${CHROOT} /voidrift -data /voidrift.json -guilds /guilds.json"
 command_background=true
 
 pidfile="/run/${RC_SVCNAME}.pid"
@@ -25,6 +24,14 @@ depend() {
 }
 
 start_pre() {
+    # Load environment file if present; exports every variable so chroot
+    # inherits them. The file should be root:root 0600.
+    if [ -f "${VOIDRIFT_ENV}" ]; then
+        set -a
+        . "${VOIDRIFT_ENV}"
+        set +a
+    fi
+
     # Data directory (chroot root) — owned by root so voidrift cannot escape
     # by replacing the binary; the process runs as voidrift inside.
     checkpath -d -o root:root   -m 0755 "${CHROOT}"

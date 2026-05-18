@@ -9,18 +9,18 @@ Type=simple
 User=voidrift
 Group=voidrift
 
+# Environment file — copy voidrift.env.example to /etc/voidrift/voidrift.env
+# and set your values there. The file must be root:root 0600.
+# Command-line flags in ExecStart override anything set here.
+EnvironmentFile=-/etc/voidrift/voidrift.env
+
 # Chroot the service into /var/lib/voidrift. The binary must be installed
 # there as ./voidrift (relative to the chroot root). All paths below are
 # relative to the chroot unless prefixed by BindReadOnlyPaths.
 RootDirectory=/var/lib/voidrift
 WorkingDirectory=/
 
-ExecStart=/voidrift \
-    -server irc.libera.chat:6667 \
-    -nick VoidKeeper \
-    -channel "#voidrift" \
-    -data /voidrift.json \
-    -guilds /guilds.json
+ExecStart=/voidrift -data /voidrift.json -guilds /guilds.json
 
 Restart=on-failure
 RestartSec=30s
