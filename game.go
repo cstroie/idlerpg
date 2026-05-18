@@ -1344,18 +1344,18 @@ func (g *Game) tickQuestProgress(online []*Player) []string {
 	return msgs
 }
 
-// tickServerEvents fires the server-wide periodic events: Hand of God (~1/20
-// days), team battle (~4/day when 6+ online), guild battle (~1/day), quest
-// start (~1/day), and quest timeout resolution. Must be called with mu held.
+// tickServerEvents fires the server-wide periodic events: Hand of God (~1/day),
+// team battle (~8/day when 6+ online), guild battle (~4/day), quest
+// start (~4/day), and quest timeout resolution. Must be called with mu held.
 func (g *Game) tickServerEvents(online []*Player) []string {
 	var msgs []string
-	if len(online) > 0 && rateCheck(86400*20, g.Rates.ServerEvents) {
+	if len(online) > 0 && rateCheck(86400, g.Rates.ServerEvents) {
 		msgs = append(msgs, g.handOfGod(online[mathrand.Intn(len(online))]))
 	}
-	if len(online) >= 6 && rateCheck(86400/4, g.Rates.ServerEvents) {
+	if len(online) >= 6 && rateCheck(86400/8, g.Rates.ServerEvents) {
 		msgs = append(msgs, g.teamBattle(online)...)
 	}
-	if rateCheck(86400, g.Rates.ServerEvents) {
+	if rateCheck(86400/4, g.Rates.ServerEvents) {
 		msgs = append(msgs, g.guildBattle()...)
 	}
 	if g.quest == nil && rateCheck(86400/4, g.Rates.ServerEvents) {
