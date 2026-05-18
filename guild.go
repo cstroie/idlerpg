@@ -232,7 +232,7 @@ func (g *Game) CmdGLeave(src string) string {
 		return "You are not in a guild."
 	}
 	guildName := guild.Name
-	guildKey := strings.ToLower(guildName)
+	guildKey := strings.ToLower(strings.Join(strings.Fields(guildName), " "))
 	displayNick := p.Nick
 
 	guild.removeMember(nick)
@@ -477,7 +477,7 @@ func (g *Game) saveGuilds() {
 		log.Println("saveGuilds error:", err)
 		return
 	}
-	if err := os.WriteFile(g.guildsFile, data, 0644); err != nil {
+	if err := writeFileAtomic(g.guildsFile, data); err != nil {
 		log.Println("writeGuilds error:", err)
 	}
 }

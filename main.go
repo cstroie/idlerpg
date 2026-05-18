@@ -20,6 +20,7 @@ func main() {
 	dataFile   := flag.String("data", "idlerpg.json", "Player data file")
 	guildsFile := flag.String("guilds", "guilds.json", "Guild data file")
 	dev        := flag.Bool("dev", false, "Dev mode: auto-login channel members on startup and speed up TTL by 5×")
+	nickservPass := flag.String("nickserv", "", "NickServ password (sends IDENTIFY on connect)")
 	flag.Parse()
 
 	cfg := irc.NewConfig(*nick, "idlerpg", "IdleRPG bot")
@@ -45,6 +46,9 @@ func main() {
 
 	conn.HandleFunc("connected", func(c *irc.Conn, line *irc.Line) {
 		log.Println("Connected, joining", *channel)
+		if *nickservPass != "" {
+			c.Privmsg("NickServ", "IDENTIFY "+*nickservPass)
+		}
 		c.Join(*channel)
 		game.start()
 		if *dev {
@@ -163,7 +167,7 @@ func main() {
 				return
 			}
 			msg := game.CmdLogin(src, fields[1])
-			say(msg)
+			reply(msg)
 
 		case "!logout":
 			msg := game.CmdLogout(src)

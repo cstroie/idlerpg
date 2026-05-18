@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"math"
 	mathrand "math/rand"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -116,9 +118,10 @@ const questMinPlayers = 4
 const gridSize = 500
 
 type Quest struct {
-	Questers []*Player
-	EndsAt   time.Time
-	Desc     string
+	Questers   []*Player
+	EndsAt     time.Time
+	Desc       string
+	OnlineAtStart map[string]bool // lowercase nicks online when quest began; only these are penalised on failure
 	// Grid-based quest fields.
 	IsGrid  bool
 	QX, QY  int
@@ -308,13 +311,13 @@ func (g *Game) OnPrivmsg(src, text string) {
 
 // CmdRegister creates a new character.
 func (g *Game) CmdRegister(src, nick, class, pass string) string {
-	key := strings.ToLower(nick)
-	g.mu.Lock()
-	_, exists := g.players[key]
-	g.mu.Unlock()
-	if exists {
-		return fmt.Sprintf("Nick %s is already registered.", nick)
+	if len(nick) == 0 || len(nick) > 30 {
+		return "Nick must be 1–30 characters."
 	}
+	if len(class) == 0 || len(class) > 50 {
+		return "Class must be 1–50 characters."
+	}
+	key := strings.ToLower(nick)
 	salt := newSalt()
 	p := &Player{
 		Nick:     nick,
@@ -325,8 +328,14 @@ func (g *Game) CmdRegister(src, nick, class, pass string) string {
 		TTL:      g.ttlForLevel(0),
 	}
 	g.mu.Lock()
-	g.players[key] = p
+	_, exists := g.players[key]
+	if !exists {
+		g.players[key] = p
+	}
 	g.mu.Unlock()
+	if exists {
+		return fmt.Sprintf("Nick %s is already registered.", nick)
+	}
 	g.save()
 	return fmt.Sprintf("%s, the %s, has registered for IdleRPG! Next level in %s.", nick, class, fmtDuration(p.TTL))
 }
@@ -341,7 +350,7 @@ func (g *Game) CmdLogin(src, pass string) string {
 	if !ok {
 		return "No character registered with that nick. Use !register <nick> <class> <pass> first."
 	}
-	if p.PassHash != hashPass(p.PassSalt, pass) {
+	if subtle.ConstantTimeCompare([]byte(p.PassHash), []byte(hashPass(p.PassSalt, pass))) != 1 {
 		return "Wrong password."
 	}
 	g.mu.Lock()
@@ -1155,18 +1164,24 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 		names[i] = p.Nick
 	}
 
+	onlineAtStart := make(map[string]bool, len(online))
+	for _, p := range online {
+		onlineAtStart[strings.ToLower(p.Nick)] = true
+	}
+
 	// 50% chance of a grid-based quest.
 	if mathrand.Intn(2) == 0 {
 		qx := mathrand.Intn(gridSize)
 		qy := mathrand.Intn(gridSize)
 		g.quest = &Quest{
-			Questers: questers,
-			EndsAt:   time.Now().Add(duration),
-			Desc:     desc,
-			IsGrid:   true,
-			QX:       qx,
-			QY:       qy,
-			Reached:  make(map[string]bool),
+			Questers:      questers,
+			EndsAt:        time.Now().Add(duration),
+			Desc:          desc,
+			OnlineAtStart: onlineAtStart,
+			IsGrid:        true,
+			QX:            qx,
+			QY:            qy,
+			Reached:       make(map[string]bool),
 		}
 		return []string{
 			fmt.Sprintf("Grid quest begun! %s must navigate to (%d,%d) to %s. They have %s.",
@@ -1175,9 +1190,10 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 	}
 
 	g.quest = &Quest{
-		Questers: questers,
-		EndsAt:   time.Now().Add(duration),
-		Desc:     desc,
+		Questers:      questers,
+		EndsAt:        time.Now().Add(duration),
+		Desc:          desc,
+		OnlineAtStart: onlineAtStart,
 	}
 	return []string{
 		fmt.Sprintf("Quest begun! %s have been sent to %s. They must complete it within %s.",
@@ -1228,9 +1244,11 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		}
 	}
 
-	// Failure: all online players are penalised p15.
+	// Failure: only players who were online when the quest started are penalised.
 	for _, p := range online {
-		g.applyPenalty(p, 15)
+		if quest.OnlineAtStart[strings.ToLower(p.Nick)] {
+			g.applyPenalty(p, 15)
+		}
 	}
 	if quest.IsGrid {
 		reached := make([]string, 0, len(quest.Reached))
@@ -1340,9 +1358,35 @@ func (g *Game) save() {
 		log.Println("save error:", err)
 		return
 	}
-	if err := os.WriteFile(g.dataFile, data, 0644); err != nil {
+	if err := writeFileAtomic(g.dataFile, data); err != nil {
 		log.Println("write error:", err)
 	}
+}
+
+// writeFileAtomic writes data to path via a temp file + rename so a crash
+// mid-write never leaves a half-written file.  Mode 0600 protects the file
+// (which contains password hashes) from other local users.
+func writeFileAtomic(path string, data []byte) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".save-")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	if err := os.Chmod(tmpName, 0600); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 func (g *Game) load() {
