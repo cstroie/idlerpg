@@ -79,7 +79,7 @@ should only ever live in this file, not on the command line.
 
 | Command | Description |
 |---------|-------------|
-| `!register <class> <pass>` | Create a character using your current IRC nick. Class may be multiple words; password is always last. |
+| `!register <name> <pass> <class>` | Create a character. `name` is your display name (may differ from IRC nick, one word); `class` may be multiple words. |
 | `!login <pass>` | Log in manually (auto-login happens on channel join). |
 | `!logout` | Go offline. |
 | `!dualclass <class>` | Choose a permanent second class at level 12+. |

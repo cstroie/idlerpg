@@ -296,16 +296,17 @@ const helpText = "Void Drift commands: " +
 	"!gcreate <name> | !ginvite <nick> | !gaccept | !gdecline | " +
 	"!gleave | !gkick <nick> | !ginfo [name] | !gtop"
 
-// dispatchRegister handles !register <class…> <pass>.
-// The class may span multiple words; the password is always the final token.
-// The character nick is taken from the caller's IRC nick.
+// dispatchRegister handles !register <name> <pass> <class…>.
+// name and pass are single tokens; class may span multiple words.
 func dispatchRegister(src string, fields []string, g *Game, say, reply func(string)) {
-	if len(fields) < 3 {
-		reply("Usage: !register <class> <pass>")
+	if len(fields) < 4 {
+		reply("Usage: !register <name> <pass> <class>")
 		return
 	}
-	class := strings.Join(fields[1:len(fields)-1], " ")
-	say(g.CmdRegister(src, class, fields[len(fields)-1]))
+	name := fields[1]
+	pass := fields[2]
+	class := strings.Join(fields[3:], " ")
+	say(g.CmdRegister(src, name, pass, class))
 }
 
 // dispatchLogin handles !login <pass>, replying privately so the outcome

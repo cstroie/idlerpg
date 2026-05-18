@@ -47,7 +47,7 @@ Build and test with `go build ./...` and `go test ./...`.
 
 | Command | Description |
 |---------|-------------|
-| `!register <class> <pass>` | Create a character (nick taken from IRC nick) |
+| `!register <name> <pass> <class>` | Create a character; name may differ from IRC nick |
 | `!login <pass>` | Log in manually |
 | `!logout` | Go offline |
 | `!dualclass <class>` | Choose a second class at level 12+ (permanent) |
@@ -83,7 +83,9 @@ Build and test with `go build ./...` and `go test ./...`.
 ## Player Struct Fields
 
 ```
-Nick, Class, Class2   — primary and optional second class (dual-classing at lvl 12)
+Nick                  — IRC nick, used as map key and for auto-login (lowercase)
+Name                  — character display name chosen at registration (shown in all game messages)
+Class, Class2         — primary and optional second class (dual-classing at lvl 12)
 PassSalt, PassHash    — salted SHA-256 password
 Alignment             — int8: -1 evil, 0 neutral, 1 good
 Level, TTL            — level and seconds to next level

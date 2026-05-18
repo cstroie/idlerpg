@@ -139,7 +139,7 @@ func (g *Game) CmdGCreate(src, name string) string {
 	}
 	g.guilds[key] = guild
 	g.applyPenalty(p, 100)
-	displayName := p.Nick
+	displayName := p.Name
 	g.mu.Unlock()
 	g.saveGuilds()
 	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has established the faction "+iB+"[%s]"+iB+". Use !ginvite <nick> to recruit members.", displayName, name)
@@ -173,16 +173,16 @@ func (g *Game) CmdGInvite(src, targetNick string) string {
 	}
 	if g.playerGuild(tKey) != nil {
 		g.mu.Unlock()
-		return fmt.Sprintf("%s is already in a guild.", target.Nick)
+		return fmt.Sprintf("%s is already in a guild.", target.Name)
 	}
 	if guild.hasInvite(tKey) {
 		g.mu.Unlock()
-		return fmt.Sprintf("%s already has a pending invite to %q.", target.Nick, guild.Name)
+		return fmt.Sprintf("%s already has a pending invite to %q.", target.Name, guild.Name)
 	}
 	guild.Invites = append(guild.Invites, tKey)
 	guildName := guild.Name
-	inviterNick := p.Nick
-	targetDisplayNick := target.Nick
+	inviterNick := p.Name
+	targetDisplayNick := target.Name
 	g.mu.Unlock()
 	g.saveGuilds()
 	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has been offered membership in "+iB+"[%s]"+iB+" by "+iB+cCyan+"%s"+iC+iB+". Type !gaccept to join.", targetDisplayNick, guildName, inviterNick)
@@ -216,7 +216,7 @@ func (g *Game) CmdGAccept(src string) string {
 	invGuild.removeInvite(nick)
 	invGuild.Members = append(invGuild.Members, nick)
 	guildName := invGuild.Name
-	displayNick := p.Nick
+	displayNick := p.Name
 	g.mu.Unlock()
 	g.saveGuilds()
 	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has integrated into faction "+iB+"[%s]"+iB+".", displayNick, guildName)
@@ -244,7 +244,7 @@ func (g *Game) CmdGDecline(src string) string {
 	}
 	invGuild.removeInvite(nick)
 	guildName := invGuild.Name
-	displayNick := p.Nick
+	displayNick := p.Name
 	g.mu.Unlock()
 	g.saveGuilds()
 	return fmt.Sprintf("%s has declined the invitation to %q.", displayNick, guildName)
@@ -270,7 +270,7 @@ func (g *Game) CmdGLeave(src string) string {
 	// Use the same key normalisation as CmdGCreate to ensure the delete hits
 	// the correct map entry even when the name contains internal whitespace.
 	guildKey := strings.ToLower(strings.Join(strings.Fields(guildName), " "))
-	displayNick := p.Nick
+	displayNick := p.Name
 
 	guild.removeMember(nick)
 
@@ -324,7 +324,7 @@ func (g *Game) CmdGKick(src, targetNick string) string {
 	tp := g.players[tKey]
 	storedNick := tKey
 	if tp != nil {
-		storedNick = tp.Nick
+		storedNick = tp.Name
 	}
 	guild.removeMember(tKey)
 	guildName := guild.Name
@@ -372,7 +372,7 @@ func (g *Game) CmdGInfo(src, name string) string {
 		if p.Online {
 			online++
 		}
-		memberInfo = append(memberInfo, fmt.Sprintf("%s"+iB+cCyan+"%s"+iC+iB+" (lvl "+iB+"%d"+iB+")", marker, p.Nick, p.Level))
+		memberInfo = append(memberInfo, fmt.Sprintf("%s"+iB+cCyan+"%s"+iC+iB+" (lvl "+iB+"%d"+iB+")", marker, p.Name, p.Level))
 	}
 	return fmt.Sprintf(iB+"[%s]"+iB+" Leader: "+iB+cCyan+"%s"+iC+iB+" | Members ("+iB+"%d"+iB+" online/"+iB+"%d"+iB+"): %s | Total level: "+iB+"%d"+iB,
 		guild.Name, guild.Leader, online, len(guild.Members),
@@ -496,11 +496,11 @@ func (g *Game) guildBattle() []string {
 
 	winnerNames := make([]string, len(winners.online))
 	for i, p := range winners.online {
-		winnerNames[i] = p.Nick
+		winnerNames[i] = p.Name
 	}
 	loserNames := make([]string, len(losers.online))
 	for i, p := range losers.online {
-		loserNames[i] = p.Nick
+		loserNames[i] = p.Name
 	}
 
 	return []string{

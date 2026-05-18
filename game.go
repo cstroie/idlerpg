@@ -437,9 +437,10 @@ type Quest struct {
 }
 
 // Player represents a registered Void Drift character. It is persisted to JSON
-// and keyed by lowercase nick in Game.players.
+// and keyed by lowercase IRC nick in Game.players.
 type Player struct {
-	Nick   string // display nick, case-preserved
+	Nick   string // IRC nick, case-preserved; used for auto-login and penalty tracking
+	Name   string // character display name chosen at registration; shown in all game output
 	Class  string // primary class, free-form text chosen at registration
 	Class2 string // secondary class chosen via !dualclass at level 12+; empty if not dual-classed
 
@@ -603,8 +604,8 @@ func (g *Game) OnJoin(src string) {
 	if p != nil {
 		g.save()
 		g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+", enters the void at ("+iB+"%d,%d"+iB+"). Next phase: "+iB+"%s"+iB+".",
-			p.Nick, p.Level, p.Class, p.X, p.Y, fmtDuration(p.TTL)))
-		g.noteEvent(fmt.Sprintf("%s (lvl %d) joined", p.Nick, p.Level))
+			p.Name, p.Level, p.Class, p.X, p.Y, fmtDuration(p.TTL)))
+		g.noteEvent(fmt.Sprintf("%s (lvl %d) joined", p.Name, p.Level))
 	}
 }
 
@@ -715,11 +716,19 @@ func (g *Game) OnPrivmsg(src, text string) {
 }
 
 // CmdRegister creates a new character for the calling IRC nick with the given
-// class and password. The nick is taken from src (nick!user@host) so it always
-// matches the caller's current IRC nick, preventing nick squatting. The
-// registration result is announced publicly; the password is never echoed.
-func (g *Game) CmdRegister(src, class, pass string) string {
+// character name, password, and class. The IRC nick (from src) is used as the
+// map key and for auto-login; the character name is the display name shown in
+// all game messages and may differ from the IRC nick.
+// Syntax: !register <name> <pass> <class…>
+func (g *Game) CmdRegister(src, name, pass, class string) string {
 	nick := extractNick(src)
+	name = sanitize(name)
+	if len(name) == 0 || len(name) > 32 {
+		return "Character name must be 1–32 characters."
+	}
+	if !isValidName(name) {
+		return "Character name may only contain letters, digits, hyphens, apostrophes, and dots."
+	}
 	class = sanitize(class)
 	if len(class) == 0 || len(class) > 50 {
 		return "Class must be 1–50 characters."
@@ -731,9 +740,11 @@ func (g *Game) CmdRegister(src, class, pass string) string {
 		return fmt.Sprintf("Password must be 1–%d characters.", maxPassLen)
 	}
 	key := strings.ToLower(nick)
+	nameKey := strings.ToLower(name)
 	salt := newSalt()
 	p := &Player{
 		Nick:     nick,
+		Name:     name,
 		Class:    class,
 		PassSalt: salt,
 		PassHash: hashPass(salt, pass),
@@ -745,20 +756,32 @@ func (g *Game) CmdRegister(src, class, pass string) string {
 		X:      mathrand.Intn(gridSize),
 		Y:      mathrand.Intn(gridSize),
 	}
-	// Hold the lock across both the existence check and the insert to prevent
-	// two concurrent !register calls from creating duplicate nicks (TOCTOU).
+	// Hold the lock across both existence checks and the insert to prevent
+	// TOCTOU races with concurrent !register calls.
 	g.mu.Lock()
-	_, exists := g.players[key]
-	if !exists {
+	_, nickTaken := g.players[key]
+	var nameTaken bool
+	if !nickTaken {
+		for _, existing := range g.players {
+			if strings.ToLower(existing.Name) == nameKey {
+				nameTaken = true
+				break
+			}
+		}
+	}
+	if !nickTaken && !nameTaken {
 		g.players[key] = p
 	}
 	g.mu.Unlock()
-	if exists {
-		return fmt.Sprintf("Nick %s is already registered.", nick)
+	if nickTaken {
+		return fmt.Sprintf("IRC nick %s is already registered.", nick)
+	}
+	if nameTaken {
+		return fmt.Sprintf("Character name %q is already taken.", name)
 	}
 	g.save()
-	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the "+iI+"%s"+iI+", enters the void at ("+iB+"%d,%d"+iB+"). Next phase: "+iB+"%s"+iB+".",
-		nick, class, p.X, p.Y, fmtDuration(p.TTL))
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" ("+iI+"%s"+iI+"), enters the void at ("+iB+"%d,%d"+iB+"). Next phase: "+iB+"%s"+iB+".",
+		name, class, p.X, p.Y, fmtDuration(p.TTL))
 }
 
 // CmdLogin authenticates the player whose current IRC nick matches a registered
@@ -786,12 +809,11 @@ func (g *Game) CmdLogin(src, pass string) string {
 	p.Addr = src
 	g.mu.Unlock()
 	g.save()
-	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+", logged in. Next phase: "+iB+"%s"+iB+".", nick, p.Level, p.Class, fmtDuration(p.TTL))
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+", logged in. Next phase: "+iB+"%s"+iB+".", p.Name, p.Level, p.Class, fmtDuration(p.TTL))
 }
 
 // CmdLogout marks the calling player offline. No penalty is applied.
 func (g *Game) CmdLogout(src string) string {
-	nick := extractNick(src)
 	g.mu.Lock()
 	p := g.findByAddr(src)
 	if p != nil {
@@ -802,7 +824,7 @@ func (g *Game) CmdLogout(src string) string {
 		return "You are not logged in."
 	}
 	g.save()
-	return fmt.Sprintf("%s has disconnected from the Void Drift.", nick)
+	return fmt.Sprintf("%s has disconnected from the Void Drift.", p.Name)
 }
 
 // CmdAlign sets the calling player's alignment. Changing alignment (not just
@@ -833,9 +855,9 @@ func (g *Game) CmdAlign(src, align string) string {
 	g.mu.Unlock()
 	g.save()
 	if changed {
-		return fmt.Sprintf("%s is now %s. Changing alignment costs time — phase adjusted.", p.Nick, alignNames[newAlign])
+		return fmt.Sprintf("%s is now %s. Changing alignment costs time — phase adjusted.", p.Name, alignNames[newAlign])
 	}
-	return fmt.Sprintf("%s is already %s.", p.Nick, alignNames[newAlign])
+	return fmt.Sprintf("%s is already %s.", p.Name, alignNames[newAlign])
 }
 
 // CmdDualClass lets a player at level 12+ permanently choose a second class.
@@ -868,15 +890,15 @@ func (g *Game) CmdDualClass(src, class string) string {
 	p.Class2 = class
 	slot1 := classFocusSlot(p.Class)
 	slot2 := classFocusSlot(p.Class2)
-	nick := p.Nick
+	name := p.Name
 	g.mu.Unlock()
 	g.save()
 	if slot1 == slot2 {
 		return fmt.Sprintf("%s is now a %s/%s! Both classes share the %s focus — that slot counts triple in battle.",
-			nick, p.Class, class, itemSlots[slot1])
+			name, p.Class, class, itemSlots[slot1])
 	}
 	return fmt.Sprintf("%s is now a %s/%s! Primary focus: %s. Secondary focus: %s. Both count double in battle.",
-		nick, p.Class, class, itemSlots[slot1], itemSlots[slot2])
+		name, p.Class, class, itemSlots[slot1], itemSlots[slot2])
 }
 
 // CmdStatus returns a one-line status summary for the target player. If
@@ -919,7 +941,7 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 		}
 	}
 	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the %s level "+iB+"%d"+iB+" "+iI+"%s"+iI+" [%s]%s — phase: "+iB+"%s"+iB+" — Items: "+iB+"%d"+iB+" (focus: %s)",
-		p.Nick, alignNames[p.Alignment], p.Level, classDisplay, status, questInfo,
+		p.Name, alignNames[p.Alignment], p.Level, classDisplay, status, questInfo,
 		fmtDuration(p.TTL), p.itemSum(), focusDisplay)
 }
 
@@ -938,14 +960,14 @@ func (g *Game) CmdPos(src, targetNick string) string {
 	}
 	if !p.Online {
 		g.mu.Unlock()
-		return fmt.Sprintf("%s is offline and has no position.", p.Nick)
+		return fmt.Sprintf("%s is offline and has no position.", p.Name)
 	}
-	x, y, nick := p.X, p.Y, p.Nick
+	x, y, name := p.X, p.Y, p.Name
 
 	var neighbours []string
 	for _, op := range g.players {
 		if op != p && op.Online && op.X == x && op.Y == y {
-			neighbours = append(neighbours, op.Nick)
+			neighbours = append(neighbours, op.Name)
 		}
 	}
 
@@ -955,7 +977,7 @@ func (g *Game) CmdPos(src, targetNick string) string {
 	}
 	g.mu.Unlock()
 
-	info := fmt.Sprintf("%s is at (%d,%d)%s on a %d×%d grid.", nick, x, y, questNote, gridSize, gridSize)
+	info := fmt.Sprintf("%s is at (%d,%d)%s on a %d×%d grid.", name, x, y, questNote, gridSize, gridSize)
 	if len(neighbours) > 0 {
 		info += fmt.Sprintf(" Also here: %s.", strings.Join(neighbours, ", "))
 	}
@@ -989,7 +1011,7 @@ func (g *Game) CmdTop() string {
 	parts := make([]string, n)
 	for i := 0; i < n; i++ {
 		p := players[i]
-		parts[i] = fmt.Sprintf("%d. %s (lvl %d, items %d)", i+1, p.Nick, p.Level, p.itemSum())
+		parts[i] = fmt.Sprintf("%d. %s (lvl %d, items %d)", i+1, p.Name, p.Level, p.itemSum())
 	}
 	return "Top players: " + strings.Join(parts, " | ")
 }
@@ -1007,7 +1029,7 @@ func (g *Game) CmdQuest() string {
 
 	names := make([]string, len(q.Questers))
 	for i, p := range q.Questers {
-		names[i] = p.Nick
+		names[i] = p.Name
 	}
 	questers := strings.Join(names, ", ")
 
@@ -1028,7 +1050,7 @@ func (g *Game) CmdOnline() string {
 	var parts []string
 	for _, p := range g.players {
 		if p.Online {
-			parts = append(parts, fmt.Sprintf("%s (lvl %d)", p.Nick, p.Level))
+			parts = append(parts, fmt.Sprintf("%s (lvl %d)", p.Name, p.Level))
 		}
 	}
 	g.mu.Unlock()
@@ -1172,7 +1194,7 @@ func (g *Game) tickGrid(online []*Player) (encounterPairs [][2]*Player, msgs []s
 	if len(encounterPairs) > 0 {
 		ep := encounterPairs[0]
 		msgs = append(msgs, fmt.Sprintf(encounterMsgs[mathrand.Intn(len(encounterMsgs))],
-			ep[0].Nick, ep[1].Nick, ep[0].X, ep[0].Y))
+			ep[0].Name, ep[1].Name, ep[0].X, ep[0].Y))
 	}
 	return
 }
@@ -1190,7 +1212,7 @@ func (g *Game) tickQuestProgress(online []*Player) []string {
 		if !g.quest.Reached[nick] && qp.X == g.quest.QX && qp.Y == g.quest.QY {
 			g.quest.Reached[nick] = true
 			msgs = append(msgs, fmt.Sprintf(questReachedMsgs[mathrand.Intn(len(questReachedMsgs))],
-				qp.Nick, g.quest.QX, g.quest.QY))
+				qp.Name, g.quest.QX, g.quest.QY))
 		}
 	}
 	if len(g.quest.Reached) == len(g.quest.Questers) {
@@ -1278,7 +1300,7 @@ func (g *Game) doLevelUp(p *Player) {
 		p.ItemNames[slot] = itemName
 	}
 	slotName := itemSlots[slot]
-	nick := p.Nick
+	name := p.Name
 	level := p.Level
 	ttl := p.TTL
 	isum := p.itemSum()
@@ -1287,7 +1309,7 @@ func (g *Game) doLevelUp(p *Player) {
 	online := g.onlinePlayers()
 	var opponents []*Player
 	for _, op := range online {
-		if strings.ToLower(op.Nick) != strings.ToLower(nick) {
+		if strings.ToLower(op.Nick) != strings.ToLower(p.Nick) {
 			opponents = append(opponents, op)
 		}
 	}
@@ -1306,17 +1328,17 @@ func (g *Game) doLevelUp(p *Player) {
 		label = " " + rarityLabel(itemRarity)
 	}
 	g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%d"+iB+". Next phase: "+iB+"%s"+iB+". They find a "+iI+"%s"+iI+" of level "+iB+"%d"+iB+"%s%s [item total: "+iB+"%d"+iB+"].",
-		nick, level, fmtDuration(ttl), itemDesc, itemLevel, equipped, label, isum))
+		name, level, fmtDuration(ttl), itemDesc, itemLevel, equipped, label, isum))
 
 	switch itemRarity {
 	case rarityVoidEternal:
-		g.noteEvent(fmt.Sprintf("✦ %s found %s — VOID-ETERNAL!", nick, itemName))
+		g.noteEvent(fmt.Sprintf("✦ %s found %s — VOID-ETERNAL!", name, itemName))
 	case rarityArchitect:
-		g.noteEvent(fmt.Sprintf("★ %s found %s (Architect-grade) at lvl %d", nick, itemName, level))
+		g.noteEvent(fmt.Sprintf("★ %s found %s (Architect-grade) at lvl %d", name, itemName, level))
 	case rarityReclaimed:
-		g.noteEvent(fmt.Sprintf("%s reached lvl %d, found %s (Reclaimed)", nick, level, itemName))
+		g.noteEvent(fmt.Sprintf("%s reached lvl %d, found %s (Reclaimed)", name, level, itemName))
 	default:
-		g.noteEvent(fmt.Sprintf("%s reached lvl %d", nick, level))
+		g.noteEvent(fmt.Sprintf("%s reached lvl %d", name, level))
 	}
 
 	if len(opponents) > 0 {
@@ -1385,7 +1407,7 @@ func (g *Game) battle(a, b *Player) {
 	}
 	loser.TTL += change
 
-	wName, lName := winner.Nick, loser.Nick
+	wName, lName := winner.Name, loser.Name
 	wSum, lSum := winner.itemSum(), loser.itemSum()
 
 	stealMsg := g.tryStealItem(winner, loser)
@@ -1432,7 +1454,7 @@ func (g *Game) botBattle(p *Player) string {
 			p.TTL = 1
 		}
 		return fmt.Sprintf(botBattleWinMsgs[mathrand.Intn(len(botBattleWinMsgs))],
-			p.Nick, pRoll, pSum, botRoll, botSum)
+			p.Name, pRoll, pSum, botRoll, botSum)
 	}
 
 	change := p.TTL * 10 / 100
@@ -1441,7 +1463,7 @@ func (g *Game) botBattle(p *Player) string {
 	}
 	p.TTL += change
 	return fmt.Sprintf(botBattleLossMsgs[mathrand.Intn(len(botBattleLossMsgs))],
-		p.Nick, pRoll, pSum, botRoll, botSum)
+		p.Name, pRoll, pSum, botRoll, botSum)
 }
 
 // tryStealItem gives the winner a 3% chance to take one item slot from the
@@ -1473,10 +1495,10 @@ func (g *Game) tryStealItem(winner, loser *Player) string {
 		winner.Items[slot] = stolen
 		winner.ItemNames[slot] = stolenName
 		return fmt.Sprintf(stealEquipMsgs[mathrand.Intn(len(stealEquipMsgs))],
-			winner.Nick, loser.Nick, itemDesc, stolen)
+			winner.Name, loser.Name, itemDesc, stolen)
 	}
 	return fmt.Sprintf(stealDiscardMsgs[mathrand.Intn(len(stealDiscardMsgs))],
-		winner.Nick, loser.Nick, itemDesc, stolen)
+		winner.Name, loser.Name, itemDesc, stolen)
 }
 
 // randomEvent fires one of five equally likely individual events for p:
@@ -1493,25 +1515,25 @@ func (g *Game) randomEvent(p *Player) string {
 	switch mathrand.Intn(5) {
 	case 0: // TTL calamity
 		p.TTL += change
-		return fmt.Sprintf(calamityMsgs[mathrand.Intn(len(calamityMsgs))], p.Nick, pct)
+		return fmt.Sprintf(calamityMsgs[mathrand.Intn(len(calamityMsgs))], p.Name, pct)
 
 	case 1: // TTL godsend
 		p.TTL -= change
 		if p.TTL < 1 {
 			p.TTL = 1
 		}
-		return fmt.Sprintf(godsendMsgs[mathrand.Intn(len(godsendMsgs))], p.Nick, pct)
+		return fmt.Sprintf(godsendMsgs[mathrand.Intn(len(godsendMsgs))], p.Name, pct)
 
 	case 2: // Item calamity — degrade one non-zero slot
 		slot := g.pickNonZeroSlot(p)
 		if slot < 0 {
 			// No items yet; fall back to a TTL calamity.
 			p.TTL += change
-			return fmt.Sprintf(calamityMsgs[0], p.Nick, pct)
+			return fmt.Sprintf(calamityMsgs[0], p.Name, pct)
 		}
 		old := p.Items[slot]
 		p.Items[slot] = int(math.Max(float64(old)*float64(100-pct)/100, 1))
-		return fmt.Sprintf(itemCalamityMsgs[mathrand.Intn(len(itemCalamityMsgs))], p.Nick, itemSlots[slot], pct)
+		return fmt.Sprintf(itemCalamityMsgs[mathrand.Intn(len(itemCalamityMsgs))], p.Name, itemSlots[slot], pct)
 
 	case 3: // Item godsend — improve one slot (creates a level-1 item if all empty)
 		slot := g.pickNonZeroSlot(p)
@@ -1521,7 +1543,7 @@ func (g *Game) randomEvent(p *Player) string {
 		}
 		old := p.Items[slot]
 		p.Items[slot] = int(math.Max(float64(old)*float64(100+pct)/100, float64(old)+1))
-		return fmt.Sprintf(itemGodsendMsgs[mathrand.Intn(len(itemGodsendMsgs))], p.Nick, itemSlots[slot], pct)
+		return fmt.Sprintf(itemGodsendMsgs[mathrand.Intn(len(itemGodsendMsgs))], p.Name, itemSlots[slot], pct)
 
 	default: // Found item — random slot, level up to 1.5× player level
 		slot := mathrand.Intn(10)
@@ -1533,7 +1555,7 @@ func (g *Game) randomEvent(p *Player) string {
 			equipped = "and equips it"
 		}
 		return fmt.Sprintf("%s stumbles upon a %s of level %d on the road %s! [item total: %d]",
-			p.Nick, itemSlots[slot], found, equipped, p.itemSum())
+			p.Name, itemSlots[slot], found, equipped, p.itemSum())
 	}
 }
 
@@ -1564,13 +1586,13 @@ func (g *Game) handOfGod(p *Player) string {
 	}
 	if mathrand.Intn(5) == 0 { // 20% hurt
 		p.TTL += change
-		return fmt.Sprintf(handOfGodMsgs[0][mathrand.Intn(len(handOfGodMsgs[0]))], p.Nick, pct)
+		return fmt.Sprintf(handOfGodMsgs[0][mathrand.Intn(len(handOfGodMsgs[0]))], p.Name, pct)
 	}
 	p.TTL -= change
 	if p.TTL < 1 {
 		p.TTL = 1
 	}
-	return fmt.Sprintf(handOfGodMsgs[1][mathrand.Intn(len(handOfGodMsgs[1]))], p.Nick, pct)
+	return fmt.Sprintf(handOfGodMsgs[1][mathrand.Intn(len(handOfGodMsgs[1]))], p.Name, pct)
 }
 
 // teamBattle selects two random teams of three from the online players and
@@ -1630,7 +1652,7 @@ func (g *Game) teamBattle(online []*Player) []string {
 	names := func(team []*Player) string {
 		ns := make([]string, len(team))
 		for i, p := range team {
-			ns[i] = p.Nick
+			ns[i] = p.Name
 		}
 		return strings.Join(ns, ", ")
 	}
@@ -1665,7 +1687,7 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 
 	names := make([]string, questMinPlayers)
 	for i, p := range questers {
-		names[i] = p.Nick
+		names[i] = p.Name
 	}
 
 	// Record who is online now; only these players will be penalised if the
@@ -1738,7 +1760,7 @@ func (g *Game) resolveQuest(online []*Player) []string {
 
 	names := make([]string, len(quest.Questers))
 	for i, p := range quest.Questers {
-		names[i] = p.Nick
+		names[i] = p.Name
 	}
 
 	if allOnline {
@@ -1833,7 +1855,7 @@ func (g *Game) goodAlignmentEvent(p *Player, online []*Player) string {
 			target.TTL = 1
 		}
 	}
-	return fmt.Sprintf(goodEventMsgs[mathrand.Intn(len(goodEventMsgs))], p.Nick, partner.Nick, pct)
+	return fmt.Sprintf(goodEventMsgs[mathrand.Intn(len(goodEventMsgs))], p.Name, partner.Name, pct)
 }
 
 // evilAlignmentEvent either steals one item from a good-aligned player (50%
@@ -1857,7 +1879,7 @@ func (g *Game) evilAlignmentEvent(p *Player, online []*Player) string {
 				p.Items[slot] = stolen
 			}
 			return fmt.Sprintf(evilStealMsgs[mathrand.Intn(len(evilStealMsgs))],
-				p.Nick, target.Nick, itemSlots[slot], stolen)
+				p.Name, target.Name, itemSlots[slot], stolen)
 		}
 	}
 
@@ -1868,7 +1890,7 @@ func (g *Game) evilAlignmentEvent(p *Player, online []*Player) string {
 		change = 1
 	}
 	p.TTL += change
-	return fmt.Sprintf(forsakenMsgs[mathrand.Intn(len(forsakenMsgs))], p.Nick, pct)
+	return fmt.Sprintf(forsakenMsgs[mathrand.Intn(len(forsakenMsgs))], p.Name, pct)
 }
 
 // applyPenalty adds base × 1.14^level seconds to p's TTL. The exponential
@@ -1955,6 +1977,11 @@ func (g *Game) load() {
 	for _, p := range g.players {
 		p.Online = false
 		p.Addr = ""
+		// Migration: players registered before the Name field was added have
+		// an empty Name; fall back to their IRC nick as the character name.
+		if p.Name == "" {
+			p.Name = p.Nick
+		}
 	}
 	log.Printf("loaded %d players", len(g.players))
 }
@@ -2049,7 +2076,7 @@ func (g *Game) buildTopic() string {
 
 	parts = append(parts, fmt.Sprintf(iB+"%d"+iB+"/"+iB+"%d"+iB+" idling", online, total))
 	if top != nil {
-		parts = append(parts, fmt.Sprintf("Top: "+iB+cCyan+"%s"+iC+iB+" lvl "+iB+"%d"+iB+" "+iI+"%s"+iI, top.Nick, top.Level, top.Class))
+		parts = append(parts, fmt.Sprintf("Top: "+iB+cCyan+"%s"+iC+iB+" lvl "+iB+"%d"+iB+" "+iI+"%s"+iI, top.Name, top.Level, top.Class))
 	}
 	if qp := g.questTopicPart(); qp != "" {
 		parts = append(parts, qp)

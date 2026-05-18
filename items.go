@@ -204,7 +204,7 @@ func (g *Game) CmdItems(src, targetNick string) string {
 		parts = append(parts, entry)
 	}
 	if len(parts) == 0 {
-		return fmt.Sprintf("%s has no items yet.", p.Nick)
+		return fmt.Sprintf("%s has no items yet.", p.Name)
 	}
-	return fmt.Sprintf("%s's items: %s [total: %d]", p.Nick, strings.Join(parts, " | "), p.itemSum())
+	return fmt.Sprintf("%s's items: %s [total: %d]", p.Name, strings.Join(parts, " | "), p.itemSum())
 }
