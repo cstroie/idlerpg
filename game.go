@@ -1,4 +1,4 @@
-// Package main implements GoIdle, a standalone IdleRPG IRC bot written in Go.
+// Package main implements VoidKeeper, the Void Drift IRC bot written in Go.
 //
 // This file contains the core game engine: player and quest data types, the
 // per-second tick loop, all battle mechanics, random events, the grid/map
@@ -373,7 +373,7 @@ type Quest struct {
 	Reached map[string]bool
 }
 
-// Player represents a registered IdleRPG character. It is persisted to JSON
+// Player represents a registered Void Drift character. It is persisted to JSON
 // and keyed by lowercase nick in Game.players.
 type Player struct {
 	Nick   string // display nick, case-preserved
@@ -729,7 +729,7 @@ func (g *Game) CmdLogout(src string) string {
 		return "You are not logged in."
 	}
 	g.save()
-	return fmt.Sprintf("%s has logged out of IdleRPG.", nick)
+	return fmt.Sprintf("%s has disconnected from the Void Drift.", nick)
 }
 
 // CmdAlign sets the calling player's alignment. Changing alignment (not just
@@ -1960,7 +1960,7 @@ func (g *Game) buildTopic() string {
 		}
 	}
 
-	parts := []string{iB + "⚔ IdleRPG" + iB}
+	parts := []string{iB + "⚔ Void Drift" + iB}
 	if online == 0 && total == 0 {
 		return strings.Join(append(parts, idleFlavors[mathrand.Intn(len(idleFlavors))]), " | ")
 	}

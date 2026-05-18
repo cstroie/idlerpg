@@ -325,7 +325,7 @@ func TestCmdLogout(t *testing.T) {
 	g.CmdRegister("Alice!a@h", "Warrior", "pass")
 	g.CmdLogin("Alice!a@h", "pass")
 	msg := g.CmdLogout("Alice!a@h")
-	if !strings.Contains(msg, "logged out") {
+	if !strings.Contains(msg, "disconnected") {
 		t.Errorf("expected logged-out message, got %q", msg)
 	}
 	if g.players["alice"].Online {
@@ -700,8 +700,8 @@ func TestBuildTopicEmpty(t *testing.T) {
 	g.mu.Lock()
 	topic := g.buildTopic()
 	g.mu.Unlock()
-	if !strings.Contains(topic, "IdleRPG") {
-		t.Errorf("topic should contain IdleRPG, got %q", topic)
+	if !strings.Contains(topic, "Void Drift") {
+		t.Errorf("topic should contain Void Drift, got %q", topic)
 	}
 }
 

@@ -1,4 +1,4 @@
-// Package main is the entry point for GoIdle, a standalone IdleRPG IRC bot.
+// Package main is the entry point for VoidKeeper, the Void Drift IRC bot.
 //
 // It wires the IRC connection (via fluffle/goirc) to the game engine defined in
 // game.go and guild.go. All game logic lives in [Game]; this file is responsible
@@ -19,11 +19,11 @@ import (
 // handlers, then runs the reconnect loop forever.
 func main() {
 	server := flag.String("server", "irc.libera.chat:6667", "IRC server host:port")
-	nick := flag.String("nick", "GoIdle", "Bot nick")
+	nick := flag.String("nick", "VoidKeeper", "Bot nick")
 	password := flag.String("password", "", "Server password")
 	ssl := flag.Bool("ssl", false, "Use SSL")
-	channel := flag.String("channel", "#idlerpg", "Game channel")
-	dataFile := flag.String("data", "idlerpg.json", "Player data file")
+	channel := flag.String("channel", "#voidrift", "Game channel")
+	dataFile := flag.String("data", "voidrift.json", "Player data file")
 	guildsFile := flag.String("guilds", "guilds.json", "Guild data file")
 	dev := flag.Bool("dev", false, "Dev mode: auto-login channel members on startup and speed up TTL by 5×")
 	nickservPass := flag.String("nickserv", "", "NickServ password (sends IDENTIFY on connect)")
@@ -32,7 +32,7 @@ func main() {
 	rateServer := flag.Float64("rate-server", 1.0, "Server event rate multiplier (team battles, guild battles, quests, Hand of God; default 1.0)")
 	flag.Parse()
 
-	cfg := irc.NewConfig(*nick, "idlerpg", "IdleRPG bot")
+	cfg := irc.NewConfig(*nick, "voidrift", "Void Drift bot")
 	cfg.SSL = *ssl
 	cfg.Server = *server
 	cfg.Pass = *password
@@ -153,7 +153,7 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 		// In IRC, channel names always start with '#', '&', '!', or '+'.
 		// Anything else is a DM addressed directly to the bot, regardless of
 		// what the bot's current nick is (it may differ from botNick if a
-		// collision forced a rename to e.g. "GoIdle_").
+		// collision forced a rename to e.g. "VoidKeeper_").
 		replyTo := extractNick(src) // default: reply to sender
 		if !isChannel(ch) {
 			// DM — reply goes back to the sender as a DM.
@@ -215,7 +215,7 @@ func registerWHOHandlers(conn *irc.Conn, game *Game, botNick string, dev bool) {
 var version = "dev"
 
 func init() {
-	log.Printf("IdleRPG bot starting (version %s)", version)
+	log.Printf("Void Drift / VoidKeeper starting (version %s)", version)
 }
 
 // dispatchCommand routes a parsed IRC command (fields[0] is the command token)
@@ -255,7 +255,7 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 }
 
 // helpText is the single-line command reference sent in response to !help.
-const helpText = "IdleRPG commands: " +
+const helpText = "Void Drift commands: " +
 	"!register <class> <pass> | " +
 	"!login <pass> | !logout | " +
 	"!dualclass <class> (level 12+, permanent) | " +

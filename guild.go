@@ -16,6 +16,23 @@ import (
 	"strings"
 )
 
+// guildBattleOpenMsgs announce a guild engagement.
+// Args: winnerGuild, winnerPower, winnerRoll, loserGuild, loserPower, loserRoll.
+var guildBattleOpenMsgs = []string{
+	"Guild engagement! [" + iB + "%s" + iB + "] (force " + iB + cOrange + "%d" + iC + iB + ", roll " + iB + cOrange + "%d" + iC + iB + ") vs [" + iB + "%s" + iB + "] (force " + iB + cOrange + "%d" + iC + iB + ", roll " + iB + cOrange + "%d" + iC + iB + ").",
+	"Faction conflict! [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ", roll " + iB + cOrange + "%d" + iC + iB + ") vs [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ", roll " + iB + cOrange + "%d" + iC + iB + ").",
+	"Cohort battle: [" + iB + "%s" + iB + "] (force " + iB + cOrange + "%d" + iC + iB + "/roll " + iB + cOrange + "%d" + iC + iB + ") meets [" + iB + "%s" + iB + "] (force " + iB + cOrange + "%d" + iC + iB + "/roll " + iB + cOrange + "%d" + iC + iB + ").",
+	"The void forces an accounting: [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ", " + iB + cOrange + "%d" + iC + iB + ") meets [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ", " + iB + cOrange + "%d" + iC + iB + ").",
+}
+
+// guildBattleWinMsgs announce the outcome. Args: winnerGuild, winnerMembers, loserMembers.
+var guildBattleWinMsgs = []string{
+	"[" + iB + cLime + "%s" + iC + iB + "] wins the engagement. " + iB + "%s" + iB + " advance phase by " + iB + cTeal + "20%%" + iC + iB + "; " + iB + "%s" + iB + " are set back " + iB + cRed + "15%%" + iC + iB + ".",
+	"[" + iB + cLime + "%s" + iC + iB + "] breaks the opposing faction. " + iB + "%s" + iB + ": phase " + iB + cTeal + "-20%%" + iC + iB + ". " + iB + "%s" + iB + ": phase " + iB + cRed + "+15%%" + iC + iB + ".",
+	"[" + iB + cLime + "%s" + iC + iB + "] holds the field. " + iB + "%s" + iB + " gain " + iB + cTeal + "20%%" + iC + iB + " phase; " + iB + "%s" + iB + " lose " + iB + cRed + "15%%" + iC + iB + ".",
+	"[" + iB + cLime + "%s" + iC + iB + "] drives the rival cell back. " + iB + "%s" + iB + ": " + iB + cTeal + "-20%%" + iC + iB + " phase. " + iB + "%s" + iB + ": " + iB + cRed + "+15%%" + iC + iB + ".",
+}
+
 // Guild represents a player-created group. All string fields that hold nicks
 // use lowercase nicks to match the keys in Game.players.
 type Guild struct {
@@ -122,7 +139,7 @@ func (g *Game) CmdGCreate(src, name string) string {
 	displayName := p.Nick
 	g.mu.Unlock()
 	g.saveGuilds()
-	return fmt.Sprintf("%s has founded the guild %q! Use !ginvite <nick> to recruit members.", displayName, name)
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has established the faction "+iB+"[%s]"+iB+". Use !ginvite <nick> to recruit members.", displayName, name)
 }
 
 // CmdGInvite invites a registered player to the caller's guild. Only the
@@ -165,7 +182,7 @@ func (g *Game) CmdGInvite(src, targetNick string) string {
 	targetDisplayNick := target.Nick
 	g.mu.Unlock()
 	g.saveGuilds()
-	return fmt.Sprintf("%s has been invited to %q by %s. They can type !gaccept to join.", targetDisplayNick, guildName, inviterNick)
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has been offered membership in "+iB+"[%s]"+iB+" by "+iB+cCyan+"%s"+iC+iB+". Type !gaccept to join.", targetDisplayNick, guildName, inviterNick)
 }
 
 // CmdGAccept accepts the first pending guild invitation found for the caller.
@@ -199,7 +216,7 @@ func (g *Game) CmdGAccept(src string) string {
 	displayNick := p.Nick
 	g.mu.Unlock()
 	g.saveGuilds()
-	return fmt.Sprintf("%s has joined the guild %q!", displayNick, guildName)
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has integrated into faction "+iB+"[%s]"+iB+".", displayNick, guildName)
 }
 
 // CmdGDecline declines the first pending guild invitation found for the caller.
@@ -257,13 +274,13 @@ func (g *Game) CmdGLeave(src string) string {
 	var msg string
 	if len(guild.Members) == 0 {
 		delete(g.guilds, guildKey)
-		msg = fmt.Sprintf("%s has left %q — the guild is now disbanded.", displayNick, guildName)
+		msg = fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has left "+iB+"[%s]"+iB+" — the faction is disbanded.", displayNick, guildName)
 	} else {
 		if guild.Leader == nick {
 			guild.Leader = guild.Members[0]
-			msg = fmt.Sprintf("%s has left %q. Leadership passes to %s.", displayNick, guildName, guild.Leader)
+			msg = fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has left "+iB+"[%s]"+iB+". Command transfers to "+iB+cCyan+"%s"+iC+iB+".", displayNick, guildName, guild.Leader)
 		} else {
-			msg = fmt.Sprintf("%s has left %q.", displayNick, guildName)
+			msg = fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has left "+iB+"[%s]"+iB+".", displayNick, guildName)
 		}
 	}
 	g.mu.Unlock()
@@ -303,7 +320,7 @@ func (g *Game) CmdGKick(src, targetNick string) string {
 	guildName := guild.Name
 	g.mu.Unlock()
 	g.saveGuilds()
-	return fmt.Sprintf("%s has been kicked from %q.", targetNick, guildName)
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has been purged from "+iB+"[%s]"+iB+".", targetNick, guildName)
 }
 
 // CmdGInfo shows a summary of the requested guild: leader, member list with
@@ -340,14 +357,14 @@ func (g *Game) CmdGInfo(src, name string) string {
 		}
 		marker := ""
 		if nick == guild.Leader {
-			marker = "*" // asterisk marks the leader in the member list
+			marker = "⚑ "
 		}
 		if p.Online {
 			online++
 		}
-		memberInfo = append(memberInfo, fmt.Sprintf("%s%s(lvl %d)", marker, p.Nick, p.Level))
+		memberInfo = append(memberInfo, fmt.Sprintf("%s"+iB+cCyan+"%s"+iC+iB+" (lvl "+iB+"%d"+iB+")", marker, p.Nick, p.Level))
 	}
-	return fmt.Sprintf("[%s] Leader: %s | Members (%d online/%d): %s | Total level: %d",
+	return fmt.Sprintf(iB+"[%s]"+iB+" Leader: "+iB+cCyan+"%s"+iC+iB+" | Members ("+iB+"%d"+iB+" online/"+iB+"%d"+iB+"): %s | Total level: "+iB+"%d"+iB,
 		guild.Name, guild.Leader, online, len(guild.Members),
 		strings.Join(memberInfo, ", "), total)
 }
@@ -375,9 +392,9 @@ func (g *Game) CmdGTop() string {
 	}
 	parts := make([]string, n)
 	for i := 0; i < n; i++ {
-		parts[i] = fmt.Sprintf("%d. %s (total lvl %d)", i+1, entries[i].name, entries[i].total)
+		parts[i] = fmt.Sprintf("%d. "+iB+"%s"+iB+" (lvl "+iB+"%d"+iB+")", i+1, entries[i].name, entries[i].total)
 	}
-	return "Top guilds: " + strings.Join(parts, " | ")
+	return iB + "Top factions:" + iB + " " + strings.Join(parts, " | ")
 }
 
 // ---------------------------------------------------------------------------
@@ -477,10 +494,10 @@ func (g *Game) guildBattle() []string {
 	}
 
 	return []string{
-		fmt.Sprintf("Guild battle! [%s] (power %d, roll %d) vs [%s] (power %d, roll %d).",
+		fmt.Sprintf(guildBattleOpenMsgs[mathrand.Intn(len(guildBattleOpenMsgs))],
 			winners.guild.Name, winners.power, wRoll,
 			losers.guild.Name, losers.power, lRoll),
-		fmt.Sprintf("[%s] wins the guild battle! Members %s advance 20%%; members %s are set back 15%%.",
+		fmt.Sprintf(guildBattleWinMsgs[mathrand.Intn(len(guildBattleWinMsgs))],
 			winners.guild.Name,
 			strings.Join(winnerNames, ", "),
 			strings.Join(loserNames, ", ")),
