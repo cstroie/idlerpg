@@ -35,7 +35,7 @@ start_pre() {
     # Create the voidrift system user if it does not exist yet.
     # Use -h /dev/null (BusyBox adduser does not support -H).
     if ! id voidrift >/dev/null 2>&1; then
-        adduser -S -D -h /dev/null -s /sbin/nologin voidrift \
+        adduser -S -D -h /dev/null -s /sbin/nologin -G nogroup voidrift \
             || { eerror "Failed to create voidrift user"; return 1; }
     fi
 
@@ -45,7 +45,7 @@ start_pre() {
     # Log directory — use mkdir/chown directly so it does not depend on
     # checkpath's user lookup (which can fail if nscd is not running).
     mkdir -p /var/log/voidrift
-    chown voidrift:voidrift /var/log/voidrift
+    chown voidrift:nogroup /var/log/voidrift
     chmod 0750 /var/log/voidrift
 
     # Create the /etc subtree inside the chroot before bind-mounting into it.
