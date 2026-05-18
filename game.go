@@ -157,6 +157,16 @@ var handOfGodMsgs = [2][]string{
 	},
 }
 
+// promoMsgs are periodic self-promotion messages broadcast to the channel once
+// per day. No format arguments — sent as-is.
+var promoMsgs = []string{
+	"⚡ " + iB + "Void Drift" + iB + " — an idle RPG for the end of the universe. Idle to level up. Source: \x02https://github.com/cstroie/voidrift\x02",
+	"📡 The Drift never sleeps. Neither does " + iB + "Void Drift" + iB + ", the IRC idle RPG. Join, register, and let the void do the rest. \x02https://github.com/cstroie/voidrift\x02",
+	"🌌 " + iB + "Void Drift" + iB + ": pick a class, pick a side, then do absolutely nothing. The universe handles the rest. \x02https://github.com/cstroie/voidrift\x02",
+	"☠ The old gods are gone. What remains is " + iB + "Void Drift" + iB + " — an idle RPG played by surviving in a dying universe. \x02https://github.com/cstroie/voidrift\x02",
+	"🔭 " + iB + "Void Drift" + iB + ": battles, quests, guilds, legendary artefacts — all while you do nothing. Open source Go IRC bot. \x02https://github.com/cstroie/voidrift\x02",
+}
+
 // battleMsgs: 1v1 announcements. Args: winner, wRoll, wSum, loser, lRoll, lSum, critNote, pct.
 var battleMsgs = []string{
 	fNick + " " + fRoll + " tears through " + fNick + " " + fRoll + "'s defences.%s Phase swing: " + fPct + ".",
@@ -1141,6 +1151,9 @@ func (g *Game) tickServerEvents(online []*Player) []string {
 	if g.quest != nil && time.Now().After(g.quest.EndsAt) {
 		msgs = append(msgs, g.resolveQuest(online)...)
 		g.quest = nil
+	}
+	if rateCheck(86400, g.Rates.ServerEvents) {
+		msgs = append(msgs, promoMsgs[mathrand.Intn(len(promoMsgs))])
 	}
 	return msgs
 }
