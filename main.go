@@ -29,6 +29,7 @@ var envFlags = map[string]string{
 	"VOIDRIFT_GUILDS":      "guilds",
 	"VOIDRIFT_DEV":         "dev",
 	"VOIDRIFT_NICKSERV":    "nickserv",
+	"VOIDRIFT_CHANSERV":    "chanserv",
 	"VOIDRIFT_RATE_PLAYER": "rate-player",
 	"VOIDRIFT_RATE_ALIGN":  "rate-align",
 	"VOIDRIFT_RATE_SERVER": "rate-server",
@@ -58,6 +59,7 @@ func main() {
 	guildsFile := flag.String("guilds", "guilds.json", "Guild data file")
 	dev := flag.Bool("dev", false, "Dev mode: auto-login channel members on startup and speed up TTL by 5×")
 	nickservPass := flag.String("nickserv", "", "NickServ password (sends IDENTIFY on connect)")
+	chanserv := flag.String("chanserv", "ChanServ", "ChanServ nick to request ops from on channel join (set empty to disable)")
 	ratePlayer := flag.Float64("rate-player", 1.0, "Per-player event rate multiplier (random events, bot battles; default 1.0 = ~1/day each)")
 	rateAlign := flag.Float64("rate-align", 1.0, "Alignment event rate multiplier (good/evil daily events; default 1.0)")
 	rateServer := flag.Float64("rate-server", 1.0, "Server event rate multiplier (team battles, guild battles, quests, Hand of God; default 1.0)")
@@ -94,7 +96,7 @@ func main() {
 	// invitedAt tracks the last time each nick was sent an IRC INVITE so we
 	// never invite the same player more than once per hour.
 	invitedAt := make(map[string]time.Time)
-	registerHandlers(conn, game, say, connected, *channel, *nick, *nickservPass, *dev, invitedAt)
+	registerHandlers(conn, game, say, connected, *channel, *nick, *nickservPass, *chanserv, *dev, invitedAt)
 
 	// Reconnect loop: on disconnect wait 10 s then try again indefinitely.
 	for {
@@ -118,7 +120,7 @@ func main() {
 // say, and the configuration values it needs via closure. The connected channel
 // receives false whenever the connection drops so the reconnect loop can fire.
 func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected chan bool,
-	channel, botNick, nickservPass string, dev bool, invitedAt map[string]time.Time) {
+	channel, botNick, nickservPass, chanserv string, dev bool, invitedAt map[string]time.Time) {
 
 	// maybeInvite sends an IRC INVITE to nick if they are a registered player
 	// not currently in the channel, and have not been invited within the last hour.
@@ -151,8 +153,11 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 	registerWHOHandlers(conn, game, botNick, dev)
 
 	conn.HandleFunc("JOIN", func(c *irc.Conn, line *irc.Line) {
-		// Ignore the bot's own JOIN confirmation.
 		if extractNick(line.Src) == botNick {
+			// Request ops from ChanServ whenever the bot joins the channel.
+			if chanserv != "" {
+				c.Privmsg(chanserv, fmt.Sprintf("OP %s %s", channel, botNick))
+			}
 			return
 		}
 		game.OnJoin(line.Src)
