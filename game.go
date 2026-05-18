@@ -1257,8 +1257,8 @@ func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string)
 		if rateCheck(86400/6, g.Rates.PlayerEvents) {
 			msgs = append(msgs, g.randomEvent(p))
 		}
-		// ~1/day: 1v1 challenge against the bot (kept rarer than random events).
-		if rateCheck(86400*2, g.Rates.PlayerEvents) {
+		// ~2/day: 1v1 challenge against the bot.
+		if rateCheck(86400/2, g.Rates.PlayerEvents) {
 			msgs = append(msgs, g.botBattle(p))
 		}
 		msgs = append(msgs, g.tickAlignmentEvent(p, online)...)
