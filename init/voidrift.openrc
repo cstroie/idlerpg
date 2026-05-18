@@ -3,17 +3,18 @@
 name="voidrift"
 description="Void Drift IRC idle RPG bot"
 
-# The chroot root is the data directory; the static binary lives inside it.
-CHROOT="/var/lib/voidrift"
+DATADIR="/var/lib/voidrift"
 
 # Environment file — copy voidrift.env.example to /etc/voidrift/voidrift.env.
 # Sourced in start_pre before the process launches.
 VOIDRIFT_ENV="/etc/voidrift/voidrift.env"
 
-command="/usr/sbin/chroot"
-command_args="--userspec=voidrift:voidrift ${CHROOT} /voidrift -data /voidrift.json -guilds /guilds.json"
+command="/usr/local/bin/voidrift"
+command_args="-data ${DATADIR}/voidrift.json -guilds ${DATADIR}/guilds.json"
+command_user="voidrift:nogroup"
 command_background=true
 
+directory="${DATADIR}"
 pidfile="/run/${RC_SVCNAME}.pid"
 output_log="/var/log/voidrift/voidrift.log"
 error_log="/var/log/voidrift/voidrift.log"
@@ -24,8 +25,7 @@ depend() {
 }
 
 start_pre() {
-    # Load environment file if present; exports every variable so chroot
-    # inherits them. The file should be root:root 0600.
+    # Load environment file if present.
     if [ -f "${VOIDRIFT_ENV}" ]; then
         set -a
         . "${VOIDRIFT_ENV}"
@@ -33,40 +33,18 @@ start_pre() {
     fi
 
     # Create the voidrift system user if it does not exist yet.
-    # Use -h /dev/null (BusyBox adduser does not support -H).
     if ! id voidrift >/dev/null 2>&1; then
-        adduser -S -D -h /dev/null -s /sbin/nologin -G nogroup voidrift \
+        adduser -S -D -h "${DATADIR}" -s /sbin/nologin -G nogroup voidrift \
             || { eerror "Failed to create voidrift user"; return 1; }
     fi
 
-    # Chroot root — owned by root so the voidrift user cannot replace the binary.
-    checkpath -d -o root:root -m 0755 "${CHROOT}"
+    # Data directory — owned by voidrift so the bot can write JSON files.
+    mkdir -p "${DATADIR}"
+    chown voidrift:nogroup "${DATADIR}"
+    chmod 0750 "${DATADIR}"
 
-    # Log directory — use mkdir/chown directly so it does not depend on
-    # checkpath's user lookup (which can fail if nscd is not running).
+    # Log directory.
     mkdir -p /var/log/voidrift
     chown voidrift:nogroup /var/log/voidrift
     chmod 0750 /var/log/voidrift
-
-    # Create the /etc subtree inside the chroot before bind-mounting into it.
-    mkdir -p "${CHROOT}/etc/ssl/certs"
-
-    # Bind-mount DNS resolution files read-only into the chroot so the
-    # pure-Go resolver can reach the IRC server by hostname.
-    for f in /etc/resolv.conf /etc/nsswitch.conf; do
-        if [ ! -f "${CHROOT}${f}" ]; then
-            touch "${CHROOT}${f}"
-        fi
-        mount --bind -o ro "${f}" "${CHROOT}${f}" 2>/dev/null || true
-    done
-
-    # TLS certificates — only needed when running with -ssl.
-    mount --bind -o ro /etc/ssl/certs "${CHROOT}/etc/ssl/certs" 2>/dev/null || true
-}
-
-stop_post() {
-    # Unmount the bind-mounts after the process exits.
-    umount "${CHROOT}/etc/ssl/certs"    2>/dev/null || true
-    umount "${CHROOT}/etc/nsswitch.conf" 2>/dev/null || true
-    umount "${CHROOT}/etc/resolv.conf"  2>/dev/null || true
 }

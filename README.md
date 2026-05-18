@@ -262,13 +262,14 @@ The topic updates on player join/part, every level-up, and after significant eve
 The Makefile handles everything automatically:
 
 ```bash
-sudo make install    # build static binary, create user, install init file
+sudo make install    # build and install binary, create user, install init file
 sudo make uninstall  # stop service, remove init file and binary
 ```
 
-`make install` detects the init system automatically (Alpine Linux → OpenRC,
-anything with `/run/systemd/system` → systemd) and does the right thing.
-After installing, configure the bot by copying the env-file template:
+`make install` installs the binary to `/usr/local/bin/voidrift`, creates
+`/var/lib/voidrift` as the data directory, and detects the init system
+automatically (Alpine Linux → OpenRC, anything with `/run/systemd/system` →
+systemd). After installing, configure the bot by copying the env-file template:
 
 ```bash
 cp /etc/voidrift/voidrift.env.example /etc/voidrift/voidrift.env
@@ -291,14 +292,10 @@ rc-service voidrift start
 
 ### Manual installation
 
-If you prefer to install without `make`, init files are in the `init/`
-directory. Both run the bot inside a chroot (`/var/lib/voidrift`) with the
-binary installed there as `/var/lib/voidrift/voidrift`. The binary must be
-statically linked — `make build-static` or `make build` both do this.
-
-DNS and TLS are handled via bind-mounts: systemd uses `BindReadOnlyPaths`;
-the OpenRC script bind-mounts `/etc/resolv.conf` and `/etc/ssl/certs` in
-`start_pre` and unmounts them on stop.
+If you prefer to install without `make`, copy the binary to `/usr/local/bin/`
+and pick the appropriate init file from the `init/` directory. The systemd
+unit runs the bot as the `voidrift` user with `WorkingDirectory=/var/lib/voidrift`;
+the OpenRC script does the same via `command_user` and `directory`.
 
 ## Contributing
 

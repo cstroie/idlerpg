@@ -4,25 +4,18 @@ NICK     ?= VoidKeeper
 SERVER   ?= irc.libera.chat:6667
 VERSION  := $(shell date +%y%m%d)
 
-LDFLAGS_STATIC  := -ldflags "-X main.version=$(VERSION) -extldflags=-static"
-LDFLAGS_DYNAMIC := -ldflags "-X main.version=$(VERSION)"
+LDFLAGS  := -ldflags "-X main.version=$(VERSION)"
 
 PREFIX   ?= /usr/local
-CHROOT   := /var/lib/voidrift
+DATADIR  := /var/lib/voidrift
 ENVDIR   := /etc/voidrift
 
-.PHONY: all build build-static build-dynamic test clean run dev install uninstall
+.PHONY: all build test clean run dev install uninstall
 
 all: build
 
-# Default build: static (no libc dependency, suitable for chroot confinement).
-build: build-static
-
-build-static:
-	CGO_ENABLED=0 go build $(LDFLAGS_STATIC) -o $(BINARY) .
-
-build-dynamic:
-	CGO_ENABLED=1 go build $(LDFLAGS_DYNAMIC) -o $(BINARY) .
+build:
+	go build $(LDFLAGS) -o $(BINARY) .
 
 test:
 	go test ./...
@@ -37,25 +30,27 @@ dev: build
 	./$(BINARY) -server $(SERVER) -nick $(NICK) -channel "$(CHANNEL)" \
 		-dev -rate-player 100 -rate-align 100 -rate-server 100
 
-# install: build a static binary, create the voidrift user and chroot
-# directory, install the binary and env-file template, then wire up the
-# correct init system (systemd or OpenRC/Alpine).
-install: build-static
-	@echo "==> Installing $(BINARY) to $(CHROOT)/$(BINARY)"
-	install -dm755 $(CHROOT)
-	chown root:root $(CHROOT)
-	install -m755 $(BINARY) $(CHROOT)/$(BINARY)
+# install: build and install the binary to PREFIX/bin, create the data and
+# env directories, create the voidrift user, then wire up the correct init
+# system (systemd or OpenRC/Alpine).
+install: build
+	@echo "==> Installing $(BINARY) to $(PREFIX)/bin/$(BINARY)"
+	install -dm755 $(PREFIX)/bin
+	install -m755 $(BINARY) $(PREFIX)/bin/$(BINARY)
+	@echo "==> Creating data directory $(DATADIR)"
+	install -dm755 $(DATADIR)
 	@echo "==> Installing env-file template to $(ENVDIR)/$(BINARY).env.example"
 	install -dm700 $(ENVDIR)
 	install -m600 init/$(BINARY).env.example $(ENVDIR)/$(BINARY).env.example
 	@# Create the dedicated user if it does not exist yet.
 	@if [ -f /etc/alpine-release ]; then \
 		id -u $(BINARY) >/dev/null 2>&1 || \
-			adduser -S -D -h $(CHROOT) -s /sbin/nologin $(BINARY); \
+			adduser -S -D -h $(DATADIR) -s /sbin/nologin $(BINARY); \
 	else \
 		id -u $(BINARY) >/dev/null 2>&1 || \
-			useradd -r -d $(CHROOT) -s /sbin/nologin $(BINARY); \
+			useradd -r -d $(DATADIR) -s /sbin/nologin $(BINARY); \
 	fi
+	chown voidrift $(DATADIR)
 	@# Install the appropriate init file.
 	@if [ -f /etc/alpine-release ]; then \
 		echo "==> Detected Alpine Linux — installing OpenRC service"; \
@@ -85,5 +80,5 @@ uninstall:
 		rm -f /etc/systemd/system/$(BINARY).service; \
 		systemctl daemon-reload; \
 	fi
-	rm -f $(CHROOT)/$(BINARY)
-	@echo "==> $(BINARY) uninstalled. Data in $(CHROOT) and config in $(ENVDIR) were preserved."
+	rm -f $(PREFIX)/bin/$(BINARY)
+	@echo "==> $(BINARY) uninstalled. Data in $(DATADIR) and config in $(ENVDIR) were preserved."
