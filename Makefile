@@ -1,6 +1,6 @@
-BINARY  := idlerpg
-CHANNEL ?= \#idlerpg
-NICK    ?= GoIdle
+BINARY  := voidrift
+CHANNEL ?= \#voidrift
+NICK    ?= VoidKeeper
 SERVER  ?= irc.libera.chat:6667
 VERSION := $(shell date +%y%m%d)
 LDFLAGS := -ldflags "-X main.version=$(VERSION)"
