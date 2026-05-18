@@ -1149,12 +1149,12 @@ func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string)
 			levelUps = append(levelUps, p)
 			continue
 		}
-		// ~1/day: random individual event (calamity, godsend, item change, find item).
-		if rateCheck(86400, g.Rates.PlayerEvents) {
+		// ~4/day: random individual event (calamity, godsend, item change, find item).
+		if rateCheck(86400/4, g.Rates.PlayerEvents) {
 			msgs = append(msgs, g.randomEvent(p))
 		}
-		// ~1/day: 1v1 challenge against the bot.
-		if rateCheck(86400, g.Rates.PlayerEvents) {
+		// ~1/day: 1v1 challenge against the bot (kept rarer than random events).
+		if rateCheck(86400*2, g.Rates.PlayerEvents) {
 			msgs = append(msgs, g.botBattle(p))
 		}
 		msgs = append(msgs, g.tickAlignmentEvent(p, online)...)
