@@ -29,15 +29,15 @@
 - [x] **`!online` command** — list currently online players.
 - [x] **Weighted item drops** — use `1/(1.4^N)` probability curve so higher-level
       items are exponentially rarer (currently uniform).
-- [ ] **NickServ/SASL auth** — identify the bot to NickServ on connect.
-- [ ] **Configurable rates** — expose event frequency multipliers as CLI flags.
-- [ ] **Unit tests** — test penalty formula, TTL formula, battle roll logic,
+- [x] **NickServ/SASL auth** — identify the bot to NickServ on connect.
+- [x] **Configurable rates** — expose event frequency multipliers as CLI flags.
+- [x] **Unit tests** — test penalty formula, TTL formula, battle roll logic,
       quest resolution without needing a live IRC connection.
 
 ## Bugs / Polish
 
 - [ ] `CmdRegister` accepts any nick argument rather than enforcing the caller's IRC nick —
       decide whether this is intended (character names ≠ IRC nicks) or a bug.
-- [ ] Quest failure should not penalise players who joined after the quest started.
-- [ ] `save()` acquires the lock internally but callers sometimes hold it already —
+- [x] Quest failure should not penalise players who joined after the quest started.
+- [x] `save()` acquires the lock internally but callers sometimes hold it already —
       audit all call sites to ensure no double-lock.
