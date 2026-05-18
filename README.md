@@ -1,4 +1,4 @@
-# GoIdle — IdleRPG IRC Bot
+# Void Drift — IRC IdleRPG Bot
 
 [![Go](https://img.shields.io/badge/go-1.21+-00ADD8?logo=go)](https://go.dev/)
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
@@ -16,10 +16,10 @@ The old gods are gone. What remains are Entities: the Pale Architects, the Drift
 git clone https://github.com/cstroie/idlerpg.git
 cd idlerpg
 make build
-./idlerpg -server irc.libera.chat:6667 -nick GoIdle -channel "#idlerpg"
+./idlerpg -server irc.libera.chat:6667 -nick VoidKeeper -channel "#voidrift"
 ```
 
-The bot connects, joins the channel, and begins the game loop immediately. Player data is saved automatically to `idlerpg.json`; guild data to `guilds.json`.
+The bot connects, joins the channel, and begins the game loop immediately. Player data is saved automatically to `voidrift.json`; guild data to `guilds.json`.
 
 To test locally without a live IRC server, use dev mode (5× faster TTL, auto-logins existing channel members on connect, and events fire ~100× more often):
 
@@ -48,11 +48,11 @@ make run SERVER=irc.example.org:6667 NICK=MyBot CHANNEL='#mygame'
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-server` | `irc.libera.chat:6667` | IRC server `host:port` |
-| `-nick` | `GoIdle` | Bot nick |
+| `-nick` | `VoidKeeper` | Bot nick |
 | `-password` | _(none)_ | Server password |
 | `-ssl` | `false` | Use SSL |
-| `-channel` | `#idlerpg` | Game channel |
-| `-data` | `idlerpg.json` | Player data file (JSON, created automatically) |
+| `-channel` | `#voidrift` | Game channel |
+| `-data` | `voidrift.json` | Player data file (JSON, created automatically) |
 | `-guilds` | `guilds.json` | Guild data file (JSON, created automatically) |
 | `-nickserv` | _(none)_ | NickServ password — sends `IDENTIFY` on connect |
 | `-dev` | `false` | Dev mode: auto-login channel members on startup and speed up TTL by 5× |
@@ -133,11 +133,11 @@ Each level-up grants a random item. The item is equipped if it beats the current
 | Rarity | Unlock | Chance | Item level range |
 |--------|--------|--------|-----------------|
 | Normal | any | always | 1 – 1.5× level |
-| Uncommon | 25 | 5% | 1.5× – 2× level |
-| Rare | 35 | 2% | 2× – 3× level |
-| Legendary | 50 | 0.5% | 3× – 5× level (min 50–100) |
+| Reclaimed | 25 | 5% | 1.5× – 2× level |
+| Architect | 35 | 2% | 2× – 3× level |
+| Void-eternal | 50 | 0.5% | 3× – 5× level (min 50–100) |
 
-Uncommon, Rare, and Legendary items have procedurally generated names (*Void-touched Resonator*, *Drift-forged Cortex*, *Pale Architect Aegis*, etc.) and are announced in channel with special markers.
+Reclaimed, Architect, and Void-eternal items have procedurally generated names (*Void-touched Resonator*, *Drift-forged Cortex*, *Pale Architect Aegis*, etc.) and are announced in channel with special markers.
 
 ### Class & Dual-Classing
 
@@ -153,7 +153,7 @@ Set with `!align <good|neutral|evil>`. Changing alignment costs penalty time.
 
 | Alignment | Battle power | Crit chance | Special event (~1/8–12 days) |
 |-----------|-------------|-------------|------------------------------|
-| Good | +10% | 1/50 | Paired with another good player via resistance network → both gain 5–12% TTL |
+| Good | +10% | 1/50 | Paired with another good player via resistance network → both gain 5–12% phase |
 | Evil | −10% | 1/20 | Entity-compact: steal an item from a good player, or get forsaken (+1–5% TTL) |
 | Neutral | normal | none | none |
 
@@ -236,7 +236,7 @@ When two players share a tile, there is a `1/len(online)` chance of a surprise b
 The bot maintains the channel topic with live game state:
 
 ```
-⚔ IdleRPG | 3/12 idling | Top: Costin lvl 42 Warrior | Grid mission: (312,88) — breach the Architect relay station [47m left] | ✦ Zara found Pale Architect Cortex — LEGENDARY!
+⚔ Void Drift | 3/12 idling | Top: Costin lvl 42 Warrior | Grid mission: (312,88) — breach the Architect relay station [47m left] | ✦ Zara found Pale Architect Cortex — VOID-ETERNAL!
 ```
 
 The topic updates on player join/part, every level-up, and after significant events (quests, battles, legendary drops, Hand of God).

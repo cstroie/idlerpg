@@ -1,8 +1,8 @@
-# IdleRPG — Project Guide for Claude
+# Void Drift — Project Guide for Claude
 
 ## What This Is
 
-A standalone IRC bot implementing the classic IdleRPG game, written in Go.
+A standalone IRC bot implementing the Void Drift idle game, written in Go.
 Players gain levels by idling in the channel. Activity (talking, nick changes,
 parting, quitting, getting kicked) adds penalty time. See README.md for player
 commands and game mechanics.
@@ -11,7 +11,7 @@ commands and game mechanics.
 
 ```bash
 go build
-./idlerpg -server irc.libera.chat:6667 -nick GoIdle -channel "#idlerpg"
+./idlerpg -server irc.libera.chat:6667 -nick VoidKeeper -channel "#voidrift"
 ```
 
 All flags:
@@ -19,11 +19,11 @@ All flags:
 | Flag | Default | Description |
 |------|---------|-------------|
 | `-server` | `irc.libera.chat:6667` | IRC server `host:port` |
-| `-nick` | `GoIdle` | Bot nick |
+| `-nick` | `VoidKeeper` | Bot nick |
 | `-password` | _(none)_ | Server password |
 | `-ssl` | `false` | Use SSL |
-| `-channel` | `#idlerpg` | Game channel |
-| `-data` | `idlerpg.json` | Player data file |
+| `-channel` | `#voidrift` | Game channel |
+| `-data` | `voidrift.json` | Player data file |
 | `-guilds` | `guilds.json` | Guild data file |
 | `-dev` | `false` | Dev mode: auto-login channel members on startup (via WHO) and speed up TTL by 5× |
 | `-nickserv` | _(none)_ | NickServ password; sends `IDENTIFY` on connect |
@@ -137,9 +137,9 @@ Dual-classed players add both focus bonuses; same slot stacks (counts triple).
 | Rarity | Unlock | Chance | Level range | Topic marker |
 |--------|--------|--------|-------------|--------------|
 | Normal | any | always | 1–1.5× level | — |
-| Uncommon | 25 | 5% | 1.5×–2× level | — |
-| Rare | 35 | 2% | 2×–3× level | `★` |
-| Legendary | 50 | 0.5% | 3×–5× level (min 50–100) | `✦` |
+| Reclaimed | 25 | 5% | 1.5×–2× level | — |
+| Architect | 35 | 2% | 2×–3× level | `★` |
+| Void-eternal | 50 | 0.5% | 3×–5× level (min 50–100) | `✦` |
 
 Unique items have procedurally generated names (prefix + slot noun) stored in `ItemNames`.
 
@@ -159,7 +159,7 @@ Unique items have procedurally generated names (prefix + slot noun) stored in `I
 ### Channel Topic
 `Game.setTopic` (wired in `main.go`) is called by `updateTopic()` after:
 - Bot connects, player joins/parts/quits, every level-up, any tick with notable events.
-- Format: `⚔ IdleRPG | N/M idling | Top: Nick lvl N Class | Quest/event info | last event`
+- Format: `⚔ Void Drift | N/M idling | Top: Nick lvl N Class | Quest/event info | last event`
 - `noteEvent(msg)` records a short string in `Game.lastEvent` and calls `updateTopic()`.
 - Must NOT be called while holding `mu`.
 
@@ -192,5 +192,5 @@ Unique items have procedurally generated names (prefix + slot noun) stored in `I
 
 ## Research
 
-See `RESEARCH.md` for detailed notes on the original IdleRPG mechanics and
+See `RESEARCH.md` for detailed notes on the original idle RPG mechanics and
 what other implementations have done. See `TODO.md` for planned and completed features.
