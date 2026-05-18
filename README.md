@@ -4,9 +4,9 @@
 [![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cstroie/idlerpg)](https://goreportcard.com/report/github.com/cstroie/idlerpg)
 
-A standalone IRC bot implementing the classic [IdleRPG](https://idlerpg.net/) game, written in Go.
+A standalone IRC bot implementing the classic [IdleRPG](https://idlerpg.net/) game, written in Go — with a cosmic horror / dying-world sci-fi skin.
 
-Players register a character, pick a class and alignment, and gain levels simply by idling in the channel. Talking, changing nick, parting, quitting, or getting kicked adds penalty time. Characters battle each other on level-up, find items, dual-class, join guilds, go on quests, and roam a 500×500 map — all without lifting a finger.
+The old gods are gone. What remains are Entities: the Pale Architects, the Drift, the Deep Signal, Protocol ZERO. Players register a character, pick a class and alignment, and gain levels simply by idling in the channel. Talking, changing nick, parting, quitting, or getting kicked adds penalty time. Characters battle each other on level-up, find salvaged artefacts, dual-class, join guilds, go on missions, and roam a 500×500 map — all without lifting a finger.
 
 ## Quickstart
 
@@ -137,7 +137,7 @@ Each level-up grants a random item. The item is equipped if it beats the current
 | Rare | 35 | 2% | 2× – 3× level |
 | Legendary | 50 | 0.5% | 3× – 5× level (min 50–100) |
 
-Uncommon, Rare, and Legendary items have procedurally generated names (*Ethereal Aegis*, *Primordial Crown*, etc.) and are announced in channel with special markers.
+Uncommon, Rare, and Legendary items have procedurally generated names (*Void-touched Resonator*, *Drift-forged Cortex*, *Pale Architect Aegis*, etc.) and are announced in channel with special markers.
 
 ### Class & Dual-Classing
 
@@ -153,8 +153,8 @@ Set with `!align <good|neutral|evil>`. Changing alignment costs penalty time.
 
 | Alignment | Battle power | Crit chance | Special event (~1/8–12 days) |
 |-----------|-------------|-------------|------------------------------|
-| Good | +10% | 1/50 | Paired with another good player → both gain 5–12% TTL |
-| Evil | −10% | 1/20 | Steal an item from a good player, or get forsaken (+1–5% TTL) |
+| Good | +10% | 1/50 | Paired with another good player via resistance network → both gain 5–12% TTL |
+| Evil | −10% | 1/20 | Entity-compact: steal an item from a good player, or get forsaken (+1–5% TTL) |
 | Neutral | normal | none | none |
 
 ### Battles
@@ -196,24 +196,26 @@ When 2+ guilds each have 2+ online members, a guild battle fires ~once per day.
 
 Each online player has a ~1/day chance of a random event:
 
-1. **TTL calamity** — 5–12% TTL increase
-2. **TTL godsend** — 5–12% TTL decrease
-3. **Item calamity** — one equipped item degraded 5–12%
-4. **Item godsend** — one item improved 5–12%
-5. **Found item** — stumble upon a roadside item; equipped if better
+1. **Calamity** — entropic flux, Null-tide, or a passing Entity costs 5–12% TTL
+2. **Godsend** — a pre-collapse navigation burst or Architect relay shortcut saves 5–12% TTL
+3. **Item calamity** — one item degraded 5–12% (void-fragment, Drift exposure, micro-collapse)
+4. **Item godsend** — one item improved 5–12% (Architect threading, ghost-signal schematics)
+5. **Found item** — stumble upon salvage on the grid; equipped if better
 
-### Hand of God
+### Entity Intervention
 
-~Once per 20 server-days, a random online player is touched by divine power: 80% chance of 5–75% TTL reduction, 20% chance of increase.
+~Once per 20 server-days, something vast notices a random online player. 80% chance of 5–75% TTL reduction; 20% chance of increase. It does not explain itself.
 
-### Quests
+### Missions
 
-~Once per day, when 4+ players at level 15+ are online, a quest begins. Four questers are chosen at random.
+~Once per day, when 4+ players at level 15+ are online, a mission is issued. Four operatives are chosen at random.
 
-**Time quest**: complete within 1–3 hours (stay online).
-**Grid quest**: all questers must navigate to a specific map coordinate.
+**Time mission**: stay online for 1–3 hours to complete the objective.
+**Grid mission**: all operatives must navigate to a specific map coordinate.
 
-- **Success**: each quester gets −25% TTL
+Example objectives: *breach the Architect relay station before it completes its transmission*, *sever the Signal tether anchoring the Entity to inhabited space*, *recover the black-box recorder from the vessel that crossed the Veil and did not return*.
+
+- **Success**: each operative gets −25% TTL
 - **Failure**: every online player gets a p15 penalty
 
 ### Grid / Map
@@ -234,7 +236,7 @@ When two players share a tile, there is a `1/len(online)` chance of a surprise b
 The bot maintains the channel topic with live game state:
 
 ```
-⚔ IdleRPG | 3/12 idling | Top: Costin lvl 42 Warrior | Quest: slay the dragon [1h left] | ✦ Zara found Primordial Aegis — LEGENDARY!
+⚔ IdleRPG | 3/12 idling | Top: Costin lvl 42 Warrior | Grid mission: (312,88) — breach the Architect relay station [47m left] | ✦ Zara found Pale Architect Cortex — LEGENDARY!
 ```
 
 The topic updates on player join/part, every level-up, and after significant events (quests, battles, legendary drops, Hand of God).
