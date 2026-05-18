@@ -1,7 +1,7 @@
 # GoIdle — IdleRPG IRC Bot
 
 [![Go](https://img.shields.io/badge/go-1.21+-00ADD8?logo=go)](https://go.dev/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/license-GPLv3-blue)](LICENSE)
 [![Go Report Card](https://goreportcard.com/badge/github.com/cstroie/idlerpg)](https://goreportcard.com/report/github.com/cstroie/idlerpg)
 
 A standalone IRC bot implementing the classic [IdleRPG](https://idlerpg.net/) game, written in Go.
