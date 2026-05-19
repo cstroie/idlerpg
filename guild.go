@@ -138,7 +138,7 @@ func (g *Game) CmdGCreate(src, name string) string {
 		Members: []string{nick},
 	}
 	g.guilds[key] = guild
-	g.applyPenalty(p, 100)
+	g.applyPenalty(p, 100, penOther)
 	displayName := p.Name
 	g.mu.Unlock()
 	g.saveGuilds()

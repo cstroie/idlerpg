@@ -160,14 +160,14 @@ func TestApplyPenalty(t *testing.T) {
 	p := &Player{Level: 0, TTL: 1000}
 
 	// At level 0: penalty = base * 1.14^0 = base * 1 = base.
-	g.applyPenalty(p, 100)
+	g.applyPenalty(p, 100, penOther)
 	if p.TTL != 1100 {
 		t.Errorf("applyPenalty level 0: TTL = %d, want 1100", p.TTL)
 	}
 
 	// At level 10: multiplier = 1.14^10 ≈ 3.707; base 100 → ~370.
 	p2 := &Player{Level: 10, TTL: 0}
-	g.applyPenalty(p2, 100)
+	g.applyPenalty(p2, 100, penOther)
 	if p2.TTL < 350 || p2.TTL > 400 {
 		t.Errorf("applyPenalty level 10, base 100: TTL = %d, want ~370", p2.TTL)
 	}
@@ -175,7 +175,7 @@ func TestApplyPenalty(t *testing.T) {
 	// Penalty always increases TTL.
 	p3 := &Player{Level: 5, TTL: 500}
 	before := p3.TTL
-	g.applyPenalty(p3, 1)
+	g.applyPenalty(p3, 1, penOther)
 	if p3.TTL <= before {
 		t.Errorf("applyPenalty should increase TTL")
 	}

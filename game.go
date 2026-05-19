@@ -761,6 +761,23 @@ type Player struct {
 	// X, Y are the player's current position on the toroidal grid. They are
 	// randomised on each login and are not persisted (position resets on reconnect).
 	X, Y int
+
+	// Timestamps.
+	CreatedAt time.Time
+	LastLogin time.Time
+
+	// TotalIdled is the cumulative number of seconds this player has spent
+	// online with a decrementing TTL (i.e. actively idling toward a level-up).
+	TotalIdled int64
+
+	// Per-source penalty totals (in scaled seconds actually added to TTL).
+	PenMesg  int64
+	PenNick  int64
+	PenPart  int64
+	PenKick  int64
+	PenQuit  int64
+	PenQuest int64
+	PenOther int64 // align, gender, dualclass, etc.
 }
 
 // they/their/them/themselves return the subject, possessive, object, and
@@ -963,6 +980,7 @@ func (g *Game) OnJoin(src string) {
 	if p != nil && !alreadyOnline {
 		p.Online = true
 		p.Addr = src
+		p.LastLogin = time.Now()
 		// Position is randomised on every login so players cannot farm
 		// encounters by repeatedly quitting and rejoining near a target.
 		p.X = mathrand.Intn(gridSize)
@@ -982,7 +1000,7 @@ func (g *Game) OnPart(src string) {
 	g.mu.Lock()
 	p := g.findByAddr(src)
 	if p != nil {
-		g.applyPenalty(p, 200)
+		g.applyPenalty(p, 200, penPart)
 		p.Online = false
 	}
 	g.mu.Unlock()
@@ -1006,7 +1024,7 @@ func (g *Game) OnQuit(src string) {
 		}
 	}
 	if p != nil {
-		g.applyPenalty(p, 20)
+		g.applyPenalty(p, 20, penQuit)
 		p.Online = false
 	}
 	g.mu.Unlock()
@@ -1026,7 +1044,7 @@ func (g *Game) OnNick(src, newNick string) {
 	g.mu.Lock()
 	p := g.players[oldKey]
 	if p != nil && p.Online {
-		g.applyPenalty(p, 30)
+		g.applyPenalty(p, 30, penNick)
 		delete(g.players, oldKey)
 		p.Nick = newNick
 		// Addr is stored as "nick!user@host"; replace only the nick portion.
@@ -1058,7 +1076,7 @@ func (g *Game) OnKick(kickedNick string) {
 	g.mu.Lock()
 	p := g.players[strings.ToLower(kickedNick)]
 	if p != nil && p.Online {
-		g.applyPenalty(p, 50)
+		g.applyPenalty(p, 50, penKick)
 		p.Online = false
 	} else {
 		p = nil
@@ -1075,7 +1093,7 @@ func (g *Game) OnPrivmsg(src, text string) {
 	g.mu.Lock()
 	p := g.findByAddr(src)
 	if p != nil {
-		g.applyPenalty(p, int64(len(text)))
+		g.applyPenalty(p, int64(len(text)), penMesg)
 	}
 	g.mu.Unlock()
 	if p != nil {
@@ -1112,16 +1130,19 @@ func (g *Game) CmdRegister(src, name, pass, class, gender string) string {
 	if gender != "m" && gender != "f" {
 		gender = "n"
 	}
+	now := time.Now()
 	salt := newSalt()
 	p := &Player{
-		Nick:     nick,
-		Name:     name,
-		Class:    class,
-		Gender:   gender,
-		PassSalt: salt,
-		PassHash: hashPass(salt, pass),
-		Level:    0,
-		TTL:      g.ttlForLevel(0),
+		Nick:      nick,
+		Name:      name,
+		Class:     class,
+		Gender:    gender,
+		PassSalt:  salt,
+		PassHash:  hashPass(salt, pass),
+		Level:     0,
+		TTL:       g.ttlForLevel(0),
+		CreatedAt: now,
+		LastLogin: now,
 		// Auto-login: the player is clearly present since they just registered.
 		Online: true,
 		Addr:   src,
@@ -1179,6 +1200,7 @@ func (g *Game) CmdLogin(src, pass string) string {
 	g.mu.Lock()
 	p.Online = true
 	p.Addr = src
+	p.LastLogin = time.Now()
 	g.mu.Unlock()
 	g.save()
 	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+", logged in. Next phase: "+iB+"%s"+iB+".", p.Name, p.Level, p.Class, fmtDuration(p.TTL))
@@ -1229,7 +1251,7 @@ func (g *Game) CmdGender(src, gender string) string {
 		return "That is already your designation."
 	}
 	p.Gender = gender
-	g.applyPenalty(p, 50)
+	g.applyPenalty(p, 50, penOther)
 	name := p.Name
 	ttl := p.TTL
 	g.mu.Unlock()
@@ -1276,7 +1298,7 @@ func (g *Game) CmdAlign(src, align string) string {
 	changed := p.Alignment != newAlign
 	p.Alignment = newAlign
 	if changed {
-		g.applyPenalty(p, 75)
+		g.applyPenalty(p, 75, penOther)
 	}
 	g.mu.Unlock()
 	g.save()
@@ -1566,6 +1588,7 @@ func (g *Game) tick(stop <-chan struct{}) {
 func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string) {
 	for _, p := range online {
 		p.TTL--
+		p.TotalIdled++
 		if p.TTL <= 0 {
 			levelUps = append(levelUps, p)
 			continue
@@ -2564,7 +2587,7 @@ func (g *Game) resolveQuest(online []*Player) []string {
 
 	for _, p := range online {
 		if quest.OnlineAtStart[strings.ToLower(p.Nick)] {
-			g.applyPenalty(p, 15)
+			g.applyPenalty(p, 15, penQuest)
 		}
 	}
 	if quest.IsGrid {
@@ -2663,11 +2686,43 @@ func (g *Game) evilAlignmentEvent(p *Player, online []*Player) string {
 	return fmt.Sprintf(forsakenMsgs[mathrand.Intn(len(forsakenMsgs))], p.Name, pct)
 }
 
-// applyPenalty adds base × 1.14^level seconds to p's TTL. The exponential
-// factor means penalties grow with level, keeping them meaningful at high levels
-// without being crippling for new players. Must be called with mu held.
-func (g *Game) applyPenalty(p *Player, base int64) {
-	p.TTL += int64(float64(base) * math.Pow(1.14, float64(p.Level)))
+// Penalty kind constants used by applyPenalty to route to the right counter.
+const (
+	penMesg  = "mesg"
+	penNick  = "nick"
+	penPart  = "part"
+	penKick  = "kick"
+	penQuit  = "quit"
+	penQuest = "quest"
+	penOther = "other"
+)
+
+// applyPenalty adds base × 1.14^level seconds to p's TTL and records the
+// amount in the matching per-source counter. Must be called with mu held.
+func (g *Game) applyPenalty(p *Player, base int64, kind string) {
+	delta := int64(float64(base) * math.Pow(1.14, float64(p.Level)))
+	p.TTL += delta
+	switch kind {
+	case penMesg:
+		p.PenMesg += delta
+	case penNick:
+		p.PenNick += delta
+	case penPart:
+		p.PenPart += delta
+	case penKick:
+		p.PenKick += delta
+	case penQuit:
+		p.PenQuit += delta
+	case penQuest:
+		p.PenQuest += delta
+	default:
+		p.PenOther += delta
+	}
+}
+
+// penTotal returns the sum of all per-source penalty counters for p.
+func (p *Player) penTotal() int64 {
+	return p.PenMesg + p.PenNick + p.PenPart + p.PenKick + p.PenQuit + p.PenQuest + p.PenOther
 }
 
 // findByAddr returns the online player whose stored Addr matches addr
