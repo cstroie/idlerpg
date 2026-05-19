@@ -141,14 +141,14 @@ func TestTTLForLevel(t *testing.T) {
 		t.Errorf("ttlForLevel(61)-ttlForLevel(60) = %d, want 86400", diff)
 	}
 
-	// DevMode divides by 5.
+	// DevMode divides by 14.
 	gd := newTestGame()
 	gd.DevMode = true
 	for _, lvl := range []int{0, 10, 60, 65} {
 		normal := g.ttlForLevel(lvl)
 		dev := gd.ttlForLevel(lvl)
-		if dev != normal/5 {
-			t.Errorf("DevMode ttlForLevel(%d) = %d, want %d", lvl, dev, normal/5)
+		if dev != normal/14 {
+			t.Errorf("DevMode ttlForLevel(%d) = %d, want %d", lvl, dev, normal/14)
 		}
 	}
 }

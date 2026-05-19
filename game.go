@@ -905,8 +905,10 @@ type Game struct {
 	// creeps are the NPC entities currently roaming the grid.
 	creeps []*Creep
 
-	// DevMode speeds up TTL by 5× and auto-logins existing channel members on
-	// connect. Set before start() is called; never mutated under mu.
+	// DevMode enables accelerated testing: TTL ÷14, event rates ×10, creep
+	// levels capped at 10, quest requirements reduced to 1 player / any level,
+	// and auto-login of existing channel members on connect.
+	// Set before start() is called; never mutated under mu.
 	DevMode bool
 
 	// Rates controls how frequently various random events fire. Each field is a
@@ -969,7 +971,12 @@ func newGame(dataFile, guildsFile string, say func(string)) *Game {
 
 // start stops any running tick goroutine, then launches a fresh one and
 // refreshes the channel topic. Called on every successful IRC connect.
+// In DevMode event rates are cranked to 10× so all game systems fire
+// frequently enough to test during a short session.
 func (g *Game) start() {
+	if g.DevMode {
+		g.Rates = Rates{PlayerEvents: 10, AlignmentEvents: 10, ServerEvents: 10}
+	}
 	if g.stopTick != nil {
 		close(g.stopTick)
 	}
@@ -1950,37 +1957,42 @@ func (g *Game) tickGrid(online []*Player) (battlePairs, tradePairs [][2]*Player,
 	return
 }
 
-// spawnCreeps populates g.creeps with creepSpawnCount newly placed creeps
-// drawn randomly from creepTemplates. Safe to call without mu (called before
-// start() launches the tick goroutine).
-func (g *Game) spawnCreeps() {
-	g.creeps = make([]*Creep, 0, creepSpawnCount)
-	for i := 0; i < creepSpawnCount; i++ {
-		tmpl := creepTemplates[mathrand.Intn(len(creepTemplates))]
-		lvl := tmpl.MinLvl + mathrand.Intn(tmpl.MaxLvl-tmpl.MinLvl+1)
-		g.creeps = append(g.creeps, &Creep{
-			Name:    tmpl.Name,
-			Hostile: tmpl.Hostile,
-			Level:   lvl,
-			X:       mathrand.Intn(gridSize),
-			Y:       mathrand.Intn(gridSize),
-		})
-	}
-}
-
-// respawnCreep replaces c with a freshly rolled creep of the same template
-// at a random grid position far from its last location.
-// Must be called with mu held.
-func (g *Game) respawnCreep(idx int) {
+// newCreep rolls a random creep from the template list. In DevMode levels are
+// capped at 10 so low-level players can realistically fight them.
+func (g *Game) newCreep() *Creep {
 	tmpl := creepTemplates[mathrand.Intn(len(creepTemplates))]
-	lvl := tmpl.MinLvl + mathrand.Intn(tmpl.MaxLvl-tmpl.MinLvl+1)
-	g.creeps[idx] = &Creep{
+	maxLvl := tmpl.MaxLvl
+	if g.DevMode && maxLvl > 10 {
+		maxLvl = 10
+	}
+	minLvl := tmpl.MinLvl
+	if minLvl > maxLvl {
+		minLvl = maxLvl
+	}
+	lvl := minLvl + mathrand.Intn(maxLvl-minLvl+1)
+	return &Creep{
 		Name:    tmpl.Name,
 		Hostile: tmpl.Hostile,
 		Level:   lvl,
 		X:       mathrand.Intn(gridSize),
 		Y:       mathrand.Intn(gridSize),
 	}
+}
+
+// spawnCreeps populates g.creeps with creepSpawnCount newly placed creeps
+// drawn randomly from creepTemplates. Safe to call without mu (called before
+// start() launches the tick goroutine).
+func (g *Game) spawnCreeps() {
+	g.creeps = make([]*Creep, 0, creepSpawnCount)
+	for i := 0; i < creepSpawnCount; i++ {
+		g.creeps = append(g.creeps, g.newCreep())
+	}
+}
+
+// respawnCreep replaces c with a freshly rolled creep at a random grid
+// position. Must be called with mu held.
+func (g *Game) respawnCreep(idx int) {
+	g.creeps[idx] = g.newCreep()
 }
 
 // creepDrop rolls a potential item drop for a player who just defeated a
@@ -2707,23 +2719,32 @@ func (g *Game) teamBattle(online []*Player) []string {
 // between a grid quest (reach coordinates) and a time quest (stay online).
 // Must be called with mu held.
 func (g *Game) tryStartQuest(online []*Player) []string {
+	minLevel := questMinLevel
+	minPlayers := questMinPlayers
+	if g.DevMode {
+		minLevel = 0
+		minPlayers = 1
+	}
 	eligible := make([]*Player, 0)
 	for _, p := range online {
-		if p.Level >= questMinLevel {
+		if p.Level >= minLevel {
 			eligible = append(eligible, p)
 		}
 	}
-	if len(eligible) < questMinPlayers {
+	if len(eligible) < minPlayers {
 		return nil
 	}
 
 	mathrand.Shuffle(len(eligible), func(i, j int) { eligible[i], eligible[j] = eligible[j], eligible[i] })
-	questers := eligible[:questMinPlayers]
+	if len(eligible) > questMinPlayers {
+		eligible = eligible[:questMinPlayers]
+	}
+	questers := eligible
 
 	desc := questDescs[mathrand.Intn(len(questDescs))]
 	duration := time.Duration(mathrand.Intn(3)+1) * time.Hour // 1–3 hours
 
-	names := make([]string, questMinPlayers)
+	names := make([]string, len(questers))
 	for i, p := range questers {
 		names[i] = p.Name
 	}
@@ -3086,7 +3107,7 @@ func (g *Game) ttlForLevel(level int) int64 {
 		t = base + int64(86400*(level-60))
 	}
 	if g.DevMode {
-		t /= 5
+		t /= 14
 	}
 	return t
 }
