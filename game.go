@@ -1059,8 +1059,8 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 			focusDisplay += "+" + slot2
 		}
 	}
-	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the %s level "+iB+"%d"+iB+" "+iI+"%s"+iI+" [%s]%s — phase: "+iB+"%s"+iB+" — Items: "+iB+"%d"+iB+" (focus: %s)",
-		p.Name, alignNames[p.Alignment], p.Level, classDisplay, status, questInfo,
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" %s "+iI+"%s"+iI+" [%s]%s — phase: "+iB+"%s"+iB+" — Items: "+iB+"%d"+iB+" (focus: %s)",
+		p.Name, p.Level, alignNames[p.Alignment], classDisplay, status, questInfo,
 		fmtDuration(p.TTL), p.itemSum(), focusDisplay)
 }
 
