@@ -251,6 +251,26 @@ var foundItemMsgs = []string{
 	"%s recovers %s %s of level %d from a pilot who no longer needs it %s. [item total: %d]",
 }
 
+// voidStormOpenMsgs: opening line of a void storm hitting all online players.
+var voidStormOpenMsgs = []string{
+	"A Null-tide sweeps the sector. Everyone caught in the open suffers.",
+	"The Veil tears. A shockwave of collapsed spacetime rolls across the grid.",
+	"Something vast dies beyond the observable threshold. Its death-pulse reaches everyone.",
+	"The Deep Signal spikes to maximum and holds. All phase-locks destabilise.",
+	"A Pale Architect construct detonates somewhere in the dark. The shockwave is not metaphorical.",
+	"Void-foam crystallises across the sector without warning. Nobody is spared.",
+	"The Drift inverts briefly. When it corrects, everyone has lost something.",
+	"An entropy wave — origin unknown — propagates through the local grid.",
+}
+
+// voidStormHitMsgs: per-player effect line. Args: name, pct.
+var voidStormHitMsgs = []string{
+	fNick + " takes the full force. Phase delayed by " + fBadPct + ".",
+	"The wave finds " + fNick + " exposed. Phase delayed by " + fBadPct + ".",
+	fNick + " cannot outrun it. Phase delayed by " + fBadPct + ".",
+	"The pulse tears through " + fNick + "'s systems. Phase delayed by " + fBadPct + ".",
+}
+
 // warpMsgs: player teleports to a new grid position. Args: name, x, y.
 var warpMsgs = []string{
 	fNick + " tears through a Drift-fold and surfaces at (" + iB + "%d,%d" + iB + ").",
@@ -1502,6 +1522,9 @@ func (g *Game) tickServerEvents(online []*Player) []string {
 	if len(online) > 0 && rateCheck(86400, g.Rates.ServerEvents) {
 		msgs = append(msgs, g.handOfGod(online[mathrand.Intn(len(online))]))
 	}
+	if len(online) >= 2 && rateCheck(86400*2, g.Rates.ServerEvents) {
+		msgs = append(msgs, g.voidStorm(online)...)
+	}
 	if len(online) >= 6 && rateCheck(86400/8, g.Rates.ServerEvents) {
 		msgs = append(msgs, g.teamBattle(online)...)
 	}
@@ -1929,6 +1952,33 @@ func (g *Game) pickNonZeroSlot(p *Player) int {
 }
 
 // handOfGod fires a dramatic divine intervention on a random online player.
+// voidStorm hits all online players with a TTL penalty (8–20%) and has a 40%
+// chance to degrade one random item slot per player by 5–10%. Must be called
+// with mu held.
+func (g *Game) voidStorm(online []*Player) []string {
+	msgs := []string{voidStormOpenMsgs[mathrand.Intn(len(voidStormOpenMsgs))]}
+	for _, p := range online {
+		pct := mathrand.Intn(13) + 8 // 8–20%
+		change := p.TTL * int64(pct) / 100
+		if change < 1 {
+			change = 1
+		}
+		p.TTL += change
+		msgs = append(msgs, fmt.Sprintf(voidStormHitMsgs[mathrand.Intn(len(voidStormHitMsgs))], p.Name, pct))
+		if mathrand.Intn(10) < 4 { // 40% item degradation
+			slot := g.pickNonZeroSlot(p)
+			if slot >= 0 {
+				ipct := mathrand.Intn(6) + 5 // 5–10%
+				old := p.Items[slot]
+				p.Items[slot] = int(math.Max(float64(old)*float64(100-ipct)/100, 1))
+				msgs = append(msgs, fmt.Sprintf(iB+cCyan+"%s"+iC+iB+"'s "+iI+"%s"+iI+" is damaged by the surge (%d%% degraded).",
+					p.Name, itemSlots[slot], ipct))
+			}
+		}
+	}
+	return msgs
+}
+
 // 80% chance to help (5–75% TTL reduction), 20% chance to hurt (same range).
 // Must be called with mu held.
 func (g *Game) handOfGod(p *Player) string {
