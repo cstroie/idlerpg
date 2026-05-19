@@ -60,7 +60,7 @@
 - [x] **`!map` command** — 11×7 ASCII minimap centred on the player; shows other players (first letter), hostile creeps (`!`), peaceful creeps (`~`), quest target (`*`), with a legend line.
 - [ ] **Achievements / titles** — unlock flavour titles at milestone levels or for specific feats (first kill, quest veteran, etc.); shown in `!status`.
 - [ ] **Seasonal events** — time-limited server-wide events with unique mechanics tied to real-world calendar dates.
-- [ ] **Player profiles / stats** — track battles won, quests completed, creeps slain, items found; exposed via a `!stats` command.
+- [x] **Player profiles / stats** — `!stats [nick]` shows total idled time, account created date, last login, total penalty time, and per-source penalty breakdown (mesg/nick/part/kick/quit/quest/other as % of total).
 
 ## Bugs / Polish
 

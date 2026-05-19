@@ -1398,6 +1398,48 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 		fmtDuration(p.TTL), p.itemSum(), focusDisplay)
 }
 
+// CmdStats returns a multi-line stats breakdown for the target player.
+// If targetNick is empty, reports on the calling player.
+func (g *Game) CmdStats(src, targetNick string) []string {
+	if targetNick == "" {
+		targetNick = extractNick(src)
+	}
+	g.mu.Lock()
+	p, ok := g.players[strings.ToLower(targetNick)]
+	g.mu.Unlock()
+	if !ok {
+		return []string{fmt.Sprintf("No character found for %s.", targetNick)}
+	}
+
+	created := "unknown"
+	if !p.CreatedAt.IsZero() {
+		created = p.CreatedAt.Format("2006-01-02")
+	}
+	lastLogin := "never"
+	if !p.LastLogin.IsZero() {
+		lastLogin = p.LastLogin.Format("2006-01-02 15:04 UTC")
+	}
+
+	total := p.penTotal()
+	penPct := func(v int64) string {
+		if total == 0 {
+			return "0%"
+		}
+		return fmt.Sprintf("%d%%", v*100/total)
+	}
+
+	return []string{
+		fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" — stats (level "+iB+"%d"+iB+", account created %s)",
+			p.Name, p.Level, created),
+		fmt.Sprintf("  Idled: "+iB+"%s"+iB+" total  |  Last login: %s",
+			fmtDuration(p.TotalIdled), lastLogin),
+		fmt.Sprintf("  Penalties total: "+iB+"%s"+iB+"  |  mesg %s  nick %s  part %s  kick %s  quit %s  quest %s  other %s",
+			fmtDuration(total),
+			penPct(p.PenMesg), penPct(p.PenNick), penPct(p.PenPart),
+			penPct(p.PenKick), penPct(p.PenQuit), penPct(p.PenQuest), penPct(p.PenOther)),
+	}
+}
+
 // CmdPos returns the grid coordinates of the target player and lists any
 // co-located players sharing the same tile. If targetNick is empty, reports
 // on the calling player.
