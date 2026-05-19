@@ -21,7 +21,7 @@ make build
 
 The bot connects, joins the channel, and begins the game loop immediately. Player data is saved automatically to `voidrift.json`; guild data to `guilds.json`.
 
-To test locally without a live IRC server, use dev mode (5× faster TTL, auto-logins existing channel members on connect, and events fire ~100× more often):
+To test locally without a live IRC server, use dev mode (14× faster TTL, event rates ×10, weak creeps, easy quests, auto-logins existing channel members on connect):
 
 ```bash
 make dev
@@ -62,7 +62,7 @@ order: **flag > env var > compiled-in default**.
 | `-guilds` | `VOIDRIFT_GUILDS` | `guilds.json` | Guild data file (created automatically) |
 | `-nickserv` | `VOIDRIFT_NICKSERV` | _(none)_ | NickServ password — sends `IDENTIFY` on connect |
 | `-chanserv` | `VOIDRIFT_CHANSERV` | `ChanServ` | ChanServ nick to request ops from on channel join (set empty to disable) |
-| `-dev` | `VOIDRIFT_DEV` | `false` | Dev mode: auto-login channel members on startup and speed up TTL by 5× |
+| `-dev` | `VOIDRIFT_DEV` | `false` | Dev mode: auto-login channel members on startup, TTL 14× faster, event rates ×10, creep levels capped at 10, quests require only 1 player at level 0+ |
 | `-rate-player` | `VOIDRIFT_RATE_PLAYER` | `1.0` | Per-player event rate multiplier — scales random events and bot battles |
 | `-rate-align` | `VOIDRIFT_RATE_ALIGN` | `1.0` | Alignment event rate multiplier — scales good/evil daily events |
 | `-rate-server` | `VOIDRIFT_RATE_SERVER` | `1.0` | Server event rate multiplier — scales team/guild battles, quests, Hand of God |
@@ -85,13 +85,18 @@ should only ever live in this file, not on the command line.
 | `!logout` | Go offline. |
 | `!dualclass <class>` | Choose a permanent second class at level 12+. |
 | `!align <good\|neutral\|evil>` | Set alignment. Changing costs penalty time. |
-| `!status [nick]` | Level, TTL, alignment, class focus slot, quest status. |
+| `!status [nick]` | Level, TTL, alignment, class focus slot, quest status, earned title. |
 | `!whoami` | Shortcut for your own status. |
 | `!top` | Top 5 players by level. |
 | `!items [nick]` | Full item loadout with unique names. |
 | `!pos [nick]` | Your grid coordinates and any co-located players. |
+| `!map` | 11×7 ASCII minimap centred on you; shows players, creeps, quest target. |
+| `!stats [nick]` | Account age, total idled time, penalty breakdown by source. |
+| `!achievements [nick]` | Earned titles and progress toward the next unlock in each category. |
 | `!online` | List all currently online players. |
 | `!quest` | Show the active quest, questers, and time remaining. |
+| `!passwd <oldpass> <newpass>` | Change your password. |
+| `!gender <he\|she\|they>` | Set pronouns used in event messages. |
 | `!help` | Print the command reference in-channel. |
 
 Your **character name** (`name`) is independent of your IRC nick — it is shown in battles, events, and the channel topic. Your IRC nick is used only for auto-login and session tracking. Both must be unique. Allowed characters: letters, digits, hyphens, apostrophes, dots.
@@ -140,7 +145,7 @@ Any activity adds time to your next level. Formula: `base × 1.14^level` seconds
 
 ### Items
 
-Ten item slots: **ring, amulet, charm, weapon, helm, tunic, gloves, leggings, shield, boots**.
+Ten item slots: **implant, beacon, module, weapon, visor, suit, gauntlets, plating, deflector, boots**.
 
 Each level-up grants a random item. The item is equipped if it beats the current slot value.
 
@@ -205,8 +210,8 @@ When 6+ players are online, a 3v3 team battle fires ~4 times per day. Teams are 
 
 When 2+ guilds each have 2+ online members, a guild battle fires ~once per day.
 
-- Winning guild's online members: −20% TTL
-- Losing guild's online members: +15% TTL
+- Winning guild's online members: −12–25% TTL
+- Losing guild's online members: +5–15% TTL
 
 ### Random Events
 
@@ -224,7 +229,7 @@ Each online player has a ~1/day chance of a random event:
 
 ### Missions
 
-~Once per day, when 4+ players at level 15+ are online, a mission is issued. Four operatives are chosen at random.
+~4 times per day, when 4+ players at level 15+ are online, a mission is issued. Four operatives are chosen at random.
 
 **Time mission**: stay online for 1–3 hours to complete the objective.
 **Grid mission**: all operatives must navigate to a specific map coordinate.
@@ -234,11 +239,50 @@ Example objectives: *breach the Architect relay station before it completes its 
 - **Success**: each operative gets −25% TTL
 - **Failure**: every online player gets a p15 penalty
 
+### Creeps
+
+Ten NPCs roam the grid at all times, respawning elsewhere when defeated.
+
+**Hostile creeps** (Null-wraith, Drift Pirate, Void Predator, Architect Sentinel, Rift Crawler, Signal Phantom) battle players on contact. Defeating one:
+- Grants a small TTL reduction (~5–10%)
+- 40% chance of an item drop (level 1–creep level)
+- Awards a kill toward creep-slaying achievements
+
+**Peaceful creeps** (Wandering Archivist, Echo Drifter, Phantom Surveyor, Pale Cartographer) may grant a small TTL boon or simply pass by.
+
+Creep levels scale with nearby player levels. In dev mode creep levels are capped at 10.
+
 ### Grid / Map
 
-Players roam a **500×500 toroidal grid**, moving one random step per second. Position is randomised on each login.
+Players and creeps roam a **500×500 toroidal grid**, moving one random step per second. Position is randomised on each login.
 
-When two players share a tile, there is a `1/len(online)` chance of a surprise battle. Use `!pos [nick]` to check your coordinates.
+When two players share a tile, there is a `1/len(online)` chance of a surprise battle. Hostile creeps engage on contact.
+
+Use `!pos [nick]` to check coordinates, or `!map` for an 11×7 ASCII minimap centred on your position:
+
+```
+. . . . . . . . . . .
+. . . . A . . . . . .
+. . . . . . ! . . . .
+. . . . @ . . . . . .
+. . . . . . ~ . . . .
+. . . * . . . . . . .
+. . . . . . . . . . .
+[A=Alice, @=you, !=hostile, ~=peaceful, *=mission target]
+```
+
+### Achievements & Titles
+
+Twenty achievements across five categories are tracked automatically. The highest-tier earned title appears in `!status`. Use `!achievements [nick]` to see all earned titles and progress toward the next unlock in each category.
+
+| Category | Thresholds |
+|----------|-----------|
+| Level | 5 · 15 · 25 · 35 · 50 · 75 · 100 |
+| Battles won | 1 · 10 · 50 |
+| Creeps slain | 1 · 10 · 50 |
+| Quests completed | 1 · 5 |
+| Idle time | 24 h · 7 days |
+| Item rarity | Reclaimed · Architect · Void-eternal |
 
 ### Persistence
 

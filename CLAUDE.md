@@ -11,7 +11,7 @@ commands and game mechanics.
 
 ```bash
 go build
-./idlerpg -server irc.libera.chat:6667 -nick VoidKeeper -channel "#voidrift"
+./voidrift -server irc.libera.chat:6667 -nick VoidKeeper -channel "#voidrift"
 ```
 
 All flags:
@@ -25,7 +25,7 @@ All flags:
 | `-channel` | `#voidrift` | Game channel |
 | `-data` | `voidrift.json` | Player data file |
 | `-guilds` | `guilds.json` | Guild data file |
-| `-dev` | `false` | Dev mode: auto-login channel members on startup (via WHO) and speed up TTL by 5× |
+| `-dev` | `false` | Dev mode: TTL ÷14, event rates ×10, weak creeps, easy quests, auto-login channel members |
 | `-nickserv` | _(none)_ | NickServ password; sends `IDENTIFY` on connect |
 | `-rate-player` | `1.0` | Per-player event multiplier (random events, bot battles) |
 | `-rate-align` | `1.0` | Alignment event multiplier (good/evil daily events) |
@@ -38,25 +38,34 @@ Build and test with `go build ./...` and `go test ./...`.
 | File | Purpose |
 |------|---------|
 | `main.go` | IRC wiring (fluffle/goirc), event dispatch, command routing, reconnect loop |
-| `game.go` | Core game logic: players, tick loop, events, battles, quests, grid, persistence |
+| `game.go` | Core game logic: players, tick loop, events, battles, quests, grid, creeps, persistence |
 | `guild.go` | Guild system: data types, commands, guild battles, persistence |
 | `items.go` | Unique/legendary item system: rarity tiers, name generation, `!items` command |
+| `achievements.go` | Achievement/title system: definitions, unlock checks, `!achievements` command |
+| `suggest.go` | Themed name/class wordlists; `SuggestForNick` used in JOIN handler |
 | `go.mod` / `go.sum` | Module: `github.com/cstroie/voidrift`, requires `fluffle/goirc` |
 
 ## Player Commands
 
 | Command | Description |
 |---------|-------------|
-| `!register <name> <pass> <class>` | Create a character; name may differ from IRC nick |
+| `!register <name> <pass> <class> [m/f/n]` | Create a character; gender optional (m/f/n) |
 | `!login <pass>` | Log in manually |
 | `!logout` | Go offline |
+| `!passwd <old> <new>` | Change password |
+| `!gender <m/f/n>` | Change pronoun setting (costs p50) |
 | `!dualclass <class>` | Choose a second class at level 12+ (permanent) |
 | `!align <good\|neutral\|evil>` | Set alignment (costs p75 to change) |
-| `!status [nick]` | Level, TTL, alignment, class focus, quest status |
+| `!status [nick]` | Level, TTL, alignment, class focus, title, quest status |
 | `!whoami` | Shortcut for your own status |
+| `!stats [nick]` | Idled time, timestamps, total and per-source penalty breakdown |
+| `!achievements [nick]` | Earned titles and progress toward next unlock in each category |
 | `!top` | Top 5 players by level |
 | `!items [nick]` | Full item loadout with unique names |
 | `!pos [nick]` | Grid coordinates and co-located players |
+| `!map` | 11×7 ASCII minimap centred on caller; shows players, creeps, quest target |
+| `!online` | List all currently online players |
+| `!quest` | Show active quest details and time remaining |
 | `!gcreate <name>` | Found a guild (costs p100) |
 | `!ginvite <nick>` | Invite a player (leader only) |
 | `!gaccept` / `!gdecline` | Accept or decline an invite |
@@ -86,39 +95,51 @@ Build and test with `go build ./...` and `go test ./...`.
 Nick                  — IRC nick, used as map key and for auto-login (lowercase)
 Name                  — character display name chosen at registration (shown in all game messages)
 Class, Class2         — primary and optional second class (dual-classing at lvl 12)
+Gender                — "m"/"f"/"n"; controls pronoun substitution in event messages
 PassSalt, PassHash    — salted SHA-256 password
 Alignment             — int8: -1 evil, 0 neutral, 1 good
 Level, TTL            — level and seconds to next level
-Items [10]int         — item level per slot (ring/amulet/charm/weapon/helm/tunic/gloves/leggings/shield/boots)
+Items [10]int         — item level per slot (implant/beacon/module/weapon/visor/suit/gauntlets/plating/deflector/boots)
 ItemNames [10]string  — unique name for each slot; empty = normal item
 Online, Addr          — session state
 X, Y                  — grid position on 500×500 toroidal map (reset on login)
+
+BattlesWon            — cumulative 1v1 battle wins
+QuestsCompleted       — cumulative successful quests
+CreepsSlain           — cumulative hostile creep defeats
+Achievements []string — IDs of earned achievements in unlock order
+
+CreatedAt, LastLogin  — timestamps
+TotalIdled            — cumulative seconds spent idling (TTL decrementing while online)
+PenMesg/Nick/Part/Kick/Quit/Quest/Other — scaled penalty seconds by source
 ```
 
 ## Game Systems
 
 ### Tick Loop (every second)
-- Decrement TTL for every online player; queue level-ups
-- Per-player: random events (~1/day), alignment events, bot battles (~1/day)
-- Global: Hand of God (~1/20 days), team battles (6+ online, ~4/day),
-  guild battles (~1/day), quest start (~1/day), quest resolution
-- Grid: move every player ±1 step; detect co-tile encounters; track grid quest progress
-- After the lock: send messages, run encounter/level-up battles, call `updateTopic`
+- Decrement TTL for every online player; increment TotalIdled; check achievements; queue level-ups
+- Per-player: random events (~6/day), bot battles (~2/day), alignment events
+- Grid: move every player and creep ±1 step; detect co-tile encounters (battle/trade/pass-by)
+  and creep encounters; track grid quest progress
+- Global: Hand of God (~1/20 days), void storm (~1/40 days), team battles (6+ online, ~8/day),
+  guild battles (~4/day), quest start (~4/day), quest timeout resolution
+- After the lock: send messages, run battles, call `updateTopic`
 
-### Random Events (5 types, equal probability)
+### Random Events (6 types, ~equal probability)
 1. TTL calamity (5–12% increase, flavour text)
 2. TTL godsend (5–12% decrease, flavour text)
 3. Item calamity (one slot degraded 5–12%)
 4. Item godsend (one slot improved 5–12%)
-5. Found item (roadside find, equipped if better)
+5. Found item (roadside find with generated name, equipped if better)
+6. Warp (teleport ±level×10 tiles in each axis)
 
 ### Battles
 - **1v1 (level-up)**: `rand(0, effectiveItemSum)` each side; higher wins.
   Winner: −`max(loser_level/4, 7)`% TTL. Loser: +same. Crits double the swing.
-- **Bot battle**: bot sum = 1 + highest effectiveItemSum. Win: −20% TTL. Loss: +10%.
+- **Bot battle**: bot sum = 1 + highest effectiveItemSum. Win: −12–25% TTL. Loss: +5–15%.
 - **Team battle (3v3)**: sum of effectiveItemSum per team; winner −20%, loser +15% TTL.
-- **Guild battle**: sum of effectiveItemSum of online members; winner −20%, loser +15%.
-- **Encounter**: co-tile players on the grid; uses standard 1v1 battle logic.
+- **Guild battle**: sum of effectiveItemSum of online members; winner −12–25%, loser +5–15%.
+- **Encounter**: co-tile players on the grid; 50% battle, 30% trade, 20% pass-by.
 - **Post-battle steal**: winner has 3% chance to take a slot from the loser.
 
 ### effectiveItemSum
@@ -135,6 +156,9 @@ Dual-classed players add both focus bonuses; same slot stacks (counts triple).
 | Evil | −10% | 1/20 | Steal from a good player, or get forsaken (+1–5% TTL) |
 | Neutral | normal | none | none |
 
+### Item Slots
+`implant`, `beacon`, `module`, `weapon`, `visor`, `suit`, `gauntlets`, `plating`, `deflector`, `boots`
+
 ### Item Rarities (level-up drops only)
 | Rarity | Unlock | Chance | Level range | Topic marker |
 |--------|--------|--------|-------------|--------------|
@@ -144,19 +168,38 @@ Dual-classed players add both focus bonuses; same slot stacks (counts triple).
 | Void-eternal | 50 | 0.5% | 3×–5× level (min 50–100) | `✦` |
 
 Unique items have procedurally generated names (prefix + slot noun) stored in `ItemNames`.
+Creep drops are always normal rarity, level 1–creep.Level (40% drop chance on hostile kill).
 
 ### Quest System
-- Triggers ~1/day when 4+ players at level 15+ are online.
+- Triggers ~4/day when 4+ players at level 15+ are online (in DevMode: 1 player, any level).
 - 50% chance of **grid quest** (questers must reach target coordinates) vs **time quest**.
 - Grid quest: resolves immediately when all questers step onto (QX, QY).
 - Time quest: resolves when the timer (1–3 hours) expires.
-- Success: all questers get −25% TTL. Failure: all online players get p15 penalty.
+- Success: all questers get −20–30% TTL and `QuestsCompleted++`. Failure: all online players get p15 penalty.
+
+### Creeps
+- 10 creeps roam the grid at all times; defeated hostile creeps respawn immediately.
+- **Hostile** (8 types: Null-wraith, Drift Pirate, Void Predator, etc.): battle any
+  co-tile player. Win: −10–20% TTL + 40% chance of item drop. Loss: +7–14% TTL.
+- **Peaceful** (4 types: Wandering Archivist, Echo Drifter, etc.): 40% chance of −5–10%
+  TTL boon, 60% flavour pass-by.
+- In DevMode creep levels are capped at 10.
+
+### Achievement System
+- 20 achievements across 5 categories: level milestones, battle wins, creep kills,
+  quest completions, idle time and item rarity.
+- Checks run in `tickPlayers`, `battle`, `tickCreeps`, `resolveQuest`, and `doLevelUp`.
+- Unlocks are announced to the channel immediately.
+- Highest-tier earned title is shown in `!status` as `[Title]`.
+- `!achievements [nick]` shows earned titles and progress toward next milestone.
 
 ### Grid / Map
-- 500×500 toroidal grid. Players move ±1 step per second (random walk).
+- 500×500 toroidal grid. Players and creeps move ±1 step per second (random walk).
 - Position randomised on each login; not persisted.
-- Co-tile players have a `1/len(online)` chance of a surprise battle each second.
+- Co-tile players: `1/len(online)` chance of encounter per second.
 - `!pos [nick]` shows coordinates, co-located players, and flags quest destinations.
+- `!map` renders an 11×7 ASCII minimap: `@` self, letter = player, `!` hostile creep,
+  `~` peaceful creep, `*` quest target, `·` empty.
 
 ### Channel Topic
 `Game.setTopic` (wired in `main.go`) is called by `updateTopic()` after:
@@ -180,12 +223,18 @@ Unique items have procedurally generated names (prefix + slot noun) stored in `I
 
 | IRC event | Game call | Penalty |
 |-----------|-----------|---------|
-| JOIN | `OnJoin` | none (auto-login + position randomise) |
+| JOIN | `OnJoin` | none (auto-login + position randomise + suggest if unregistered) |
 | PART | `OnPart` | p200 |
 | QUIT | `OnQuit` | p20 |
 | NICK | `OnNick` | p30 (also updates guild membership) |
 | KICK | `OnKick` | p50 (bot auto-rejoins if kicked) |
 | PRIVMSG | `OnPrivmsg` | 1s/char (channel only, non-command) |
+
+## Penalty Tracking
+
+`applyPenalty(p, base, kind)` computes `base × 1.14^level` seconds, adds to `p.TTL`,
+and increments the matching counter (`PenMesg`, `PenNick`, `PenPart`, `PenKick`,
+`PenQuit`, `PenQuest`, `PenOther`). `penTotal()` sums all counters.
 
 ## Random Number Usage
 
