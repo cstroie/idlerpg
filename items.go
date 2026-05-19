@@ -58,16 +58,16 @@ var legendaryPrefixes = []string{
 // slotNouns maps each item slot name to a list of flavourful nouns used as the
 // second word in a generated item name (e.g. "Void-touched Resonator").
 var slotNouns = map[string][]string{
-	"ring":     {"Beacon", "Signet", "Resonator", "Loop", "Band"},
-	"amulet":   {"Core", "Pendant", "Relay", "Tether", "Medallion"},
-	"charm":    {"Shard", "Fragment", "Token", "Sliver", "Splinter"},
-	"weapon":   {"Blade", "Lance", "Resonator", "Edge", "Fang"},
-	"helm":     {"Cortex", "Visor", "Crown", "Caul", "Shroud"},
-	"tunic":    {"Carapace", "Weave", "Mantle", "Liner", "Pall"},
-	"gloves":   {"Gauntlets", "Grips", "Claws", "Bracers", "Fists"},
-	"leggings": {"Greaves", "Plates", "Guards", "Cuisses", "Chausses"},
-	"shield":   {"Barrier", "Ward", "Bulwark", "Aegis", "Shell"},
-	"boots":    {"Treads", "Walkers", "Steps", "Striders", "Sabatons"},
+	"implant":   {"Splice", "Node", "Filament", "Chip", "Relay"},
+	"beacon":    {"Transmitter", "Pulse", "Anchor", "Tether", "Medallion"},
+	"module":    {"Drive", "Cell", "Core", "Matrix", "Cluster"},
+	"weapon":    {"Blade", "Lance", "Resonator", "Edge", "Fang"},
+	"visor":     {"Cortex", "HUD", "Lens", "Shroud", "Caul"},
+	"suit":      {"Carapace", "Weave", "Mantle", "Liner", "Shell"},
+	"gauntlets": {"Grips", "Claws", "Bracers", "Fists", "Gauntlets"},
+	"plating":   {"Greaves", "Plates", "Guards", "Panels", "Layering"},
+	"deflector": {"Barrier", "Ward", "Bulwark", "Aegis", "Field"},
+	"boots":     {"Treads", "Walkers", "Steps", "Striders", "Soles"},
 }
 
 // generateItemName produces a two-word procedural name ("Prefix Noun") for a

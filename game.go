@@ -99,8 +99,8 @@ const maxPassLen = 256 // bytes; prevents DoS via giant SHA-256 preimage
 // itemSlots names the ten equipment slots in display order. The slice index is
 // used everywhere items are stored (Player.Items, Player.ItemNames).
 var itemSlots = [10]string{
-	"ring", "amulet", "charm", "weapon", "helm",
-	"tunic", "gloves", "leggings", "shield", "boots",
+	"implant", "beacon", "module", "weapon", "visor",
+	"suit", "gauntlets", "plating", "deflector", "boots",
 }
 
 // IRC text-formatting constants for player-visible messages.
