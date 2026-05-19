@@ -251,6 +251,48 @@ var foundItemMsgs = []string{
 	"%s recovers %s %s of level %d from a pilot who no longer needs it %s. [item total: %d]",
 }
 
+// levelUpItemMsgs are templates for announcing the item found on level-up.
+// Each is a func(name, ttl, article+itemDesc, itemLevel, equipped, label string) string.
+// They vary the narrative framing so the causality doesn't feel mechanical.
+var levelUpItemMsgs = []func(name, level, ttl, aitem string, ilvl int, equipped, label string) string{
+	// Perception: sharpened senses from the phase shift.
+	func(name, level, ttl, aitem string, ilvl int, equipped, label string) string {
+		return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%s"+iB+
+			". Senses sharpened by the phase shift, they notice "+iI+"%s"+iI+
+			" of level "+iB+"%d"+iB+" nearby%s%s. Next phase: "+iB+"%s"+iB+".",
+			name, level, aitem, ilvl, equipped, label, ttl)
+	},
+	// Dislodged: phase surge shakes something loose.
+	func(name, level, ttl, aitem string, ilvl int, equipped, label string) string {
+		return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%s"+iB+
+			". The phase surge dislodges "+iI+"%s"+iI+
+			" of level "+iB+"%d"+iB+" from a nearby wreck%s%s. Next phase: "+iB+"%s"+iB+".",
+			name, level, aitem, ilvl, equipped, label, ttl)
+	},
+	// Between cycles: scavenged in the drift, unrelated to leveling.
+	func(name, level, ttl, aitem string, ilvl int, equipped, label string) string {
+		return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%s"+iB+
+			". Somewhere in the drift, between phase cycles, they recover "+iI+"%s"+iI+
+			" of level "+iB+"%d"+iB+"%s%s. Next phase: "+iB+"%s"+iB+".",
+			name, level, aitem, ilvl, equipped, label, ttl)
+	},
+	// Causality inverted: the salvage caused the breakthrough.
+	func(name, level, ttl, aitem string, ilvl int, equipped, label string) string {
+		return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%s"+iB+
+			" after salvaging "+iI+"%s"+iI+
+			" of level "+iB+"%d"+iB+"%s%s — it gave them the edge they needed. Next phase: "+iB+"%s"+iB+".",
+			name, level, aitem, ilvl, equipped, label, ttl)
+	},
+	// Separate fact: item mentioned as an aside.
+	func(name, level, ttl, aitem string, ilvl int, equipped, label string) string {
+		return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%s"+iB+
+			". Next phase: "+iB+"%s"+iB+
+			". They've also been carrying "+iI+"%s"+iI+
+			" of level "+iB+"%d"+iB+"%s%s.",
+			name, level, ttl, aitem, ilvl, equipped, label)
+	},
+}
+
 // handOfGodMsgs[0] = hurt templates, [1] = help templates. Args: (nick, pct).
 var handOfGodMsgs = [2][]string{
 	{
@@ -1450,8 +1492,10 @@ func (g *Game) doLevelUp(p *Player) {
 	if itemRarity != rarityNormal {
 		label = " " + rarityLabel(itemRarity)
 	}
-	g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%d"+iB+". Next phase: "+iB+"%s"+iB+". As a level-up reward, they find "+articleFor(itemDesc)+" "+iI+"%s"+iI+" of level "+iB+"%d"+iB+"%s%s [item total: "+iB+"%d"+iB+"].",
-		name, level, fmtDuration(ttl), itemDesc, itemLevel, equipped, label, isum))
+	tmpl := levelUpItemMsgs[mathrand.Intn(len(levelUpItemMsgs))]
+	g.say(tmpl(name, fmt.Sprintf("%d", level), fmtDuration(ttl),
+		articleFor(itemDesc)+" "+itemDesc, itemLevel, equipped, label) +
+		fmt.Sprintf(" [item total: "+iB+"%d"+iB+"]", isum))
 
 	switch itemRarity {
 	case rarityVoidEternal:
