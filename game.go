@@ -421,6 +421,25 @@ var encounterMsgs = []string{
 	"Something herds " + fNick + " and " + fNick + " together at (" + iB + "%d,%d" + iB + "). It watches.",
 }
 
+// tradeMsgs: two players meet and exchange gear. Args: nick1, nick2, x, y.
+var tradeMsgs = []string{
+	fNick + " and " + fNick + " meet at (" + iB + "%d,%d" + iB + ") and broker a deal in the drift.",
+	fNick + " and " + fNick + " cross paths at (" + iB + "%d,%d" + iB + ") — salvage changes hands.",
+	fNick + " and " + fNick + " haggle at (" + iB + "%d,%d" + iB + ") before drifting apart.",
+	"A ghost-market deal between " + fNick + " and " + fNick + " at (" + iB + "%d,%d" + iB + ").",
+	fNick + " and " + fNick + " trade cargo manifests at (" + iB + "%d,%d" + iB + ").",
+	"The Drift pushes " + fNick + " and " + fNick + " together at (" + iB + "%d,%d" + iB + "). They make the most of it.",
+}
+
+// passByMsgs: two players drift past each other without incident. Args: nick1, nick2, x, y.
+var passByMsgs = []string{
+	fNick + " and " + fNick + " drift past each other at (" + iB + "%d,%d" + iB + ") without a word.",
+	fNick + " and " + fNick + " share coordinates (" + iB + "%d,%d" + iB + ") briefly, then diverge.",
+	fNick + " and " + fNick + " cross at (" + iB + "%d,%d" + iB + ") — a nod, nothing more.",
+	"Proximity at (" + iB + "%d,%d" + iB + "): " + fNick + " and " + fNick + " keep their distance and move on.",
+	fNick + " and " + fNick + " surface at (" + iB + "%d,%d" + iB + ") and go their separate ways.",
+}
+
 // questReachedMsgs: quester arrives at grid target. Args: nick, qx, qy.
 var questReachedMsgs = []string{
 	fNick + " punches through to the objective coordinates (" + iB + "%d,%d" + iB + ").",
@@ -1249,12 +1268,12 @@ func (g *Game) tick(stop <-chan struct{}) {
 		online := g.onlinePlayers()
 
 		levelUps, msgs := g.tickPlayers(online)
-		encounterPairs, gridMsgs := g.tickGrid(online)
+		battlePairs, tradePairs, gridMsgs := g.tickGrid(online)
 		msgs = append(msgs, gridMsgs...)
 		msgs = append(msgs, g.tickQuestProgress(online)...)
 		msgs = append(msgs, g.tickServerEvents(online)...)
 
-		topicWorthy := len(levelUps) > 0 || len(encounterPairs) > 0
+		topicWorthy := len(levelUps) > 0 || len(battlePairs) > 0 || len(tradePairs) > 0
 		notableEvent := false
 		if ev := g.captureNotableEvent(msgs); ev != "" {
 			g.lastEvent = ev
@@ -1269,8 +1288,11 @@ func (g *Game) tick(stop <-chan struct{}) {
 		}
 		// Encounters trigger a standard 1v1 battle outside the lock because
 		// battle() acquires mu internally.
-		for _, ep := range encounterPairs {
+		for _, ep := range battlePairs {
 			g.battle(ep[0], ep[1])
+		}
+		for _, ep := range tradePairs {
+			g.doTrade(ep[0], ep[1])
 		}
 		for _, p := range levelUps {
 			g.doLevelUp(p)
@@ -1331,10 +1353,10 @@ func (g *Game) tickAlignmentEvent(p *Player, online []*Player) []string {
 }
 
 // tickGrid moves every online player one step in a random direction on the
-// toroidal map and checks for co-tile encounters. Returns up to one encounter
-// pair per tick (to prevent message flooding) and any encounter announcement
+// toroidal map and checks for co-tile encounters. Returns up to one battle or
+// trade pair per tick (to prevent message flooding) and any announcement
 // messages. Must be called with mu held.
-func (g *Game) tickGrid(online []*Player) (encounterPairs [][2]*Player, msgs []string) {
+func (g *Game) tickGrid(online []*Player) (battlePairs, tradePairs [][2]*Player, msgs []string) {
 	// Build a position map after moving everyone.
 	posMap := make(map[[2]int][]*Player, len(online))
 	for _, p := range online {
@@ -1351,15 +1373,24 @@ func (g *Game) tickGrid(online []*Player) (encounterPairs [][2]*Player, msgs []s
 		for _, group := range posMap {
 			if len(group) >= 2 && mathrand.Intn(len(online)) == 0 {
 				mathrand.Shuffle(len(group), func(i, j int) { group[i], group[j] = group[j], group[i] })
-				encounterPairs = append(encounterPairs, [2]*Player{group[0], group[1]})
+				a, b := group[0], group[1]
+				roll := mathrand.Intn(10)
+				switch {
+				case roll < 5: // 50% battle
+					battlePairs = append(battlePairs, [2]*Player{a, b})
+					msgs = append(msgs, fmt.Sprintf(encounterMsgs[mathrand.Intn(len(encounterMsgs))],
+						a.Name, b.Name, a.X, a.Y))
+				case roll < 8: // 30% trade
+					tradePairs = append(tradePairs, [2]*Player{a, b})
+					msgs = append(msgs, fmt.Sprintf(tradeMsgs[mathrand.Intn(len(tradeMsgs))],
+						a.Name, b.Name, a.X, a.Y))
+				default: // 20% pass-by
+					msgs = append(msgs, fmt.Sprintf(passByMsgs[mathrand.Intn(len(passByMsgs))],
+						a.Name, b.Name, a.X, a.Y))
+				}
 				break // one encounter per tick to avoid flooding
 			}
 		}
-	}
-	if len(encounterPairs) > 0 {
-		ep := encounterPairs[0]
-		msgs = append(msgs, fmt.Sprintf(encounterMsgs[mathrand.Intn(len(encounterMsgs))],
-			ep[0].Name, ep[1].Name, ep[0].X, ep[0].Y))
 	}
 	return
 }
@@ -1519,6 +1550,58 @@ func (g *Game) doLevelUp(p *Player) {
 }
 
 // battle runs a standard 1v1 fight between a and b. Each side rolls
+// doTrade attempts a mutually beneficial item exchange between two players who
+// met on the grid. It finds a pair of slots (i, j) where a has a higher item
+// in slot i and b has a higher item in slot j, then swaps those two items so
+// both players improve. If no such pair exists it falls back to a battle.
+// Acquires mu internally.
+func (g *Game) doTrade(a, b *Player) {
+	g.mu.Lock()
+	type slotPair struct{ i, j int }
+	var candidates []slotPair
+	for i := 0; i < 10; i++ {
+		for j := 0; j < 10; j++ {
+			if i == j {
+				continue
+			}
+			if a.Items[i] > b.Items[i] && b.Items[j] > a.Items[j] {
+				candidates = append(candidates, slotPair{i, j})
+			}
+		}
+	}
+	if len(candidates) == 0 {
+		g.mu.Unlock()
+		// No mutually beneficial trade; fall back to battle.
+		g.battle(a, b)
+		return
+	}
+	pick := candidates[mathrand.Intn(len(candidates))]
+	gi, gj := pick.i, pick.j
+
+	// Swap item gi (a→b) and item gj (b→a).
+	a.Items[gi], b.Items[gi] = b.Items[gi], a.Items[gi]
+	a.ItemNames[gi], b.ItemNames[gi] = b.ItemNames[gi], a.ItemNames[gi]
+	a.Items[gj], b.Items[gj] = b.Items[gj], a.Items[gj]
+	a.ItemNames[gj], b.ItemNames[gj] = b.ItemNames[gj], a.ItemNames[gj]
+
+	// Describe what each player received (after the swap).
+	descItem := func(p *Player, slot int) string {
+		name := p.ItemNames[slot]
+		if name != "" {
+			return fmt.Sprintf(iI+"%s"+iI+" ("+itemSlots[slot]+":%d)", name, p.Items[slot])
+		}
+		return fmt.Sprintf(iI+"%s"+iI+":%d", itemSlots[slot], p.Items[slot])
+	}
+	aGot := descItem(a, gj) // a received slot gj from b
+	bGot := descItem(b, gi) // b received slot gi from a
+	aName, bName := a.Name, b.Name
+	g.mu.Unlock()
+
+	g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" gets %s; "+iB+cCyan+"%s"+iC+iB+" gets %s. Both walk away satisfied.",
+		aName, aGot, bName, bGot))
+	g.save()
+}
+
 // rand(0, effectiveItemSum); the higher roll wins. The TTL swing is
 // max(loser.Level/4, 7)% and is doubled on a critical hit. The winner has a
 // 3% chance to steal one item slot from the loser. Acquires mu internally.
