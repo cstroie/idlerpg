@@ -96,7 +96,8 @@ func main() {
 	// invitedAt tracks the last time each nick was sent an IRC INVITE so we
 	// never invite the same player more than once per hour.
 	invitedAt := make(map[string]time.Time)
-	registerHandlers(conn, game, say, connected, *channel, *nick, *nickservPass, *chanserv, *dev, invitedAt)
+	var resetWHO func()
+	registerHandlers(conn, game, say, connected, *channel, *nick, *nickservPass, *chanserv, *dev, invitedAt, &resetWHO)
 
 	// Reconnect loop: on disconnect wait 10 s then try again indefinitely.
 	for {
@@ -120,7 +121,7 @@ func main() {
 // say, and the configuration values it needs via closure. The connected channel
 // receives false whenever the connection drops so the reconnect loop can fire.
 func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected chan bool,
-	channel, botNick, nickservPass, chanserv string, dev bool, invitedAt map[string]time.Time) {
+	channel, botNick, nickservPass, chanserv string, dev bool, invitedAt map[string]time.Time, resetWHO *func()) {
 
 	// maybeInvite sends an IRC INVITE to nick if they are a registered player
 	// not currently in the channel, and have not been invited within the last hour.
@@ -146,11 +147,12 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 		// In dev mode, issue WHO immediately so existing channel members are
 		// auto-logged in without having to re-join.
 		if dev {
+			(*resetWHO)()
 			c.Who(channel)
 		}
 	})
 
-	registerWHOHandlers(conn, game, botNick, dev)
+	*resetWHO = registerWHOHandlers(conn, game, botNick, dev)
 
 	conn.HandleFunc("JOIN", func(c *irc.Conn, line *irc.Line) {
 		if extractNick(line.Src) == botNick {
@@ -221,8 +223,9 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 //
 // whoQueue accumulates nick!user@host strings from 352 replies and is flushed
 // into [Game.OnJoin] calls when 315 signals the end of the WHO list.
-func registerWHOHandlers(conn *irc.Conn, game *Game, botNick string, dev bool) {
+func registerWHOHandlers(conn *irc.Conn, game *Game, botNick string, dev bool) func() {
 	var whoQueue []string
+	reset := func() { whoQueue = nil }
 	conn.HandleFunc("352", func(c *irc.Conn, line *irc.Line) {
 		// Args layout: [botnick, #channel, user, host, server, nick, flags, ...]
 		if !dev || len(line.Args) < 6 {
@@ -245,6 +248,7 @@ func registerWHOHandlers(conn *irc.Conn, game *Game, botNick string, dev bool) {
 			game.OnJoin(src)
 		}
 	})
+	return reset
 }
 
 // version is set at build time via -ldflags "-X main.version=YYMMDD".
