@@ -772,7 +772,8 @@ func (g *Game) OnJoin(src string) {
 	nick := extractNick(src)
 	g.mu.Lock()
 	p := g.players[strings.ToLower(nick)]
-	if p != nil {
+	alreadyOnline := p != nil && p.Online
+	if p != nil && !alreadyOnline {
 		p.Online = true
 		p.Addr = src
 		// Position is randomised on every login so players cannot farm
@@ -781,7 +782,7 @@ func (g *Game) OnJoin(src string) {
 		p.Y = mathrand.Intn(gridSize)
 	}
 	g.mu.Unlock()
-	if p != nil {
+	if p != nil && !alreadyOnline {
 		g.save()
 		g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+", enters the void at ("+iB+"%d,%d"+iB+"). Next phase: "+iB+"%s"+iB+".",
 			p.Name, p.Level, p.Class, p.X, p.Y, fmtDuration(p.TTL)))
