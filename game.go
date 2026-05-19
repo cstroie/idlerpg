@@ -251,6 +251,17 @@ var foundItemMsgs = []string{
 	"%s recovers %s %s of level %d from a pilot who no longer needs it %s. [item total: %d]",
 }
 
+// warpMsgs: player teleports to a new grid position. Args: name, x, y.
+var warpMsgs = []string{
+	fNick + " tears through a Drift-fold and surfaces at (" + iB + "%d,%d" + iB + ").",
+	"A Null-current seizes " + fNick + " and deposits them at (" + iB + "%d,%d" + iB + ").",
+	fNick + " slips through a collapsed Architect transit and emerges at (" + iB + "%d,%d" + iB + ").",
+	"The void blinks. " + fNick + " is suddenly at (" + iB + "%d,%d" + iB + ").",
+	fNick + " rides a ghost-signal spike across the grid, landing at (" + iB + "%d,%d" + iB + ").",
+	"A phase-crack swallows " + fNick + " and spits them out at (" + iB + "%d,%d" + iB + ").",
+	fNick + " steps into a Null-fold and steps out at (" + iB + "%d,%d" + iB + "). Physics optional.",
+}
+
 // levelUpItemMsgs are templates for announcing the item found on level-up.
 // Each is a func(name, ttl, article+itemDesc, itemLevel, equipped, label string) string.
 // They vary the narrative framing so the causality doesn't feel mechanical.
@@ -350,23 +361,23 @@ var critNoteMsgs = []string{
 	" " + iB + cRed + "Pale Architect crit!" + iC + iB,
 }
 
-// botBattle messages. Args: nick, pRoll, pSum, botRoll, botSum.
+// botBattle messages. Args: nick, pRoll, pSum, botRoll, botSum, pct.
 var botBattleWinMsgs = []string{
-	fNick + " " + fRoll + " punches through " + fBot + " " + fRoll + ". Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
-	fNick + " " + fRoll + " dismantles " + fBot + "'s defences " + fRoll + ". Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
-	fNick + " " + fRoll + " overwhelms the " + fNullI + " " + fRoll + " — for now. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
-	fNick + " " + fRoll + " finds the crack in " + fBot + " " + fRoll + " and exploits it. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
-	fNick + " " + fRoll + " outmanoeuvres " + fBot + " " + fRoll + " in a clean exchange. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
-	fNick + " " + fRoll + " takes the " + fNullI + " " + fRoll + " apart without mercy. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
+	fNick + " " + fRoll + " punches through " + fBot + " " + fRoll + ". Phase advanced by " + fGoodPct + ".",
+	fNick + " " + fRoll + " dismantles " + fBot + "'s defences " + fRoll + ". Phase advanced by " + fGoodPct + ".",
+	fNick + " " + fRoll + " overwhelms the " + fNullI + " " + fRoll + " — for now. Phase advanced by " + fGoodPct + ".",
+	fNick + " " + fRoll + " finds the crack in " + fBot + " " + fRoll + " and exploits it. Phase advanced by " + fGoodPct + ".",
+	fNick + " " + fRoll + " outmanoeuvres " + fBot + " " + fRoll + " in a clean exchange. Phase advanced by " + fGoodPct + ".",
+	fNick + " " + fRoll + " takes the " + fNullI + " " + fRoll + " apart without mercy. Phase advanced by " + fGoodPct + ".",
 }
 
 var botBattleLossMsgs = []string{
-	fNick + " " + fRoll + " is repelled by " + fBot + " " + fRoll + ". Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
-	fNick + " " + fRoll + " cannot breach the " + fNullI + " " + fRoll + ". Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
-	fNick + " " + fRoll + " shatters against " + fBot + " " + fRoll + " and is thrown back. Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
-	fNick + " " + fRoll + " exhausts every advantage against " + fBot + " " + fRoll + ". Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
-	fNick + " " + fRoll + " finds no weakness in " + fBot + " " + fRoll + ". The retreat is costly. Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
-	fNick + " " + fRoll + " is systematically dismantled by the " + fNullI + " " + fRoll + ". Phase delayed by " + iB + cRed + "10%%" + iC + iB + ".",
+	fNick + " " + fRoll + " is repelled by " + fBot + " " + fRoll + ". Phase delayed by " + fBadPct + ".",
+	fNick + " " + fRoll + " cannot breach the " + fNullI + " " + fRoll + ". Phase delayed by " + fBadPct + ".",
+	fNick + " " + fRoll + " shatters against " + fBot + " " + fRoll + " and is thrown back. Phase delayed by " + fBadPct + ".",
+	fNick + " " + fRoll + " exhausts every advantage against " + fBot + " " + fRoll + ". Phase delayed by " + fBadPct + ".",
+	fNick + " " + fRoll + " finds no weakness in " + fBot + " " + fRoll + ". The retreat is costly. Phase delayed by " + fBadPct + ".",
+	fNick + " " + fRoll + " is systematically dismantled by the " + fNullI + " " + fRoll + ". Phase delayed by " + fBadPct + ".",
 }
 
 // stealEquipMsgs and stealDiscardMsgs: post-battle item theft. Args: winner, loser, itemDesc, itemLevel.
@@ -399,12 +410,12 @@ var teamBattleOpenMsgs = []string{
 
 // teamBattleWinMsgs: winning team announcement. Args: winners.
 var teamBattleWinMsgs = []string{
-	"[" + iB + cLime + "%s" + iC + iB + "] break through. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest anchor).",
-	"[" + iB + cLime + "%s" + iC + iB + "] hold the line and advance. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest).",
-	"[" + iB + cLime + "%s" + iC + iB + "] take the exchange — cleanly. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest).",
-	"[" + iB + cLime + "%s" + iC + iB + "] collapse the opposing formation. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest anchor).",
-	"[" + iB + cLime + "%s" + iC + iB + "] establish fire superiority and press it. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
-	"[" + iB + cLime + "%s" + iC + iB + "] execute the engagement without error. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest).",
+	"[" + iB + cLime + "%s" + iC + iB + "] break through. Phase advanced by " + fGoodPct + " (weakest anchor).",
+	"[" + iB + cLime + "%s" + iC + iB + "] hold the line and advance. Phase advanced by " + fGoodPct + " (weakest).",
+	"[" + iB + cLime + "%s" + iC + iB + "] take the exchange — cleanly. Phase advanced by " + fGoodPct + " (weakest).",
+	"[" + iB + cLime + "%s" + iC + iB + "] collapse the opposing formation. Phase advanced by " + fGoodPct + " (weakest anchor).",
+	"[" + iB + cLime + "%s" + iC + iB + "] establish fire superiority and press it. Phase advanced by " + fGoodPct + ".",
+	"[" + iB + cLime + "%s" + iC + iB + "] execute the engagement without error. Phase advanced by " + fGoodPct + " (weakest).",
 }
 
 // encounterMsgs: surprise grid collision. Args: nick1, nick2, x, y.
@@ -1353,17 +1364,56 @@ func (g *Game) tickAlignmentEvent(p *Player, online []*Player) []string {
 	return nil
 }
 
+// driftStep returns a ±1 step biased toward the target coordinate on a
+// toroidal axis of size gridSize. With 70% probability it steps toward the
+// target (taking the shorter arc); otherwise it steps randomly.
+func driftStep(pos, target int) int {
+	direct := 0
+	d := target - pos
+	// Choose the shorter arc on the toroidal axis.
+	if d > gridSize/2 {
+		d -= gridSize
+	} else if d < -gridSize/2 {
+		d += gridSize
+	}
+	if d > 0 {
+		direct = 1
+	} else if d < 0 {
+		direct = -1
+	}
+	if direct != 0 && mathrand.Intn(10) < 7 {
+		return direct
+	}
+	return mathrand.Intn(3) - 1
+}
+
 // tickGrid moves every online player one step in a random direction on the
 // toroidal map and checks for co-tile encounters. Returns up to one battle or
 // trade pair per tick (to prevent message flooding) and any announcement
 // messages. Must be called with mu held.
 func (g *Game) tickGrid(online []*Player) (battlePairs, tradePairs [][2]*Player, msgs []string) {
+	// Build a set of quester nicks for O(1) lookup.
+	questerNicks := make(map[string]bool)
+	if g.quest != nil && g.quest.IsGrid {
+		for _, qp := range g.quest.Questers {
+			questerNicks[strings.ToLower(qp.Nick)] = true
+		}
+	}
+
 	// Build a position map after moving everyone.
 	posMap := make(map[[2]int][]*Player, len(online))
 	for _, p := range online {
-		// ±1 step with toroidal wrap; +gridSize before mod prevents negative indices.
-		p.X = (p.X + mathrand.Intn(3) - 1 + gridSize) % gridSize
-		p.Y = (p.Y + mathrand.Intn(3) - 1 + gridSize) % gridSize
+		var dx, dy int
+		if questerNicks[strings.ToLower(p.Nick)] && g.quest != nil {
+			// Questers drift toward the target; others walk randomly.
+			dx = driftStep(p.X, g.quest.QX)
+			dy = driftStep(p.Y, g.quest.QY)
+		} else {
+			dx = mathrand.Intn(3) - 1
+			dy = mathrand.Intn(3) - 1
+		}
+		p.X = (p.X + dx + gridSize) % gridSize
+		p.Y = (p.Y + dy + gridSize) % gridSize
 		key := [2]int{p.X, p.Y}
 		posMap[key] = append(posMap[key], p)
 	}
@@ -1701,7 +1751,8 @@ func (g *Game) botBattle(p *Player) string {
 	botRoll := mathrand.Intn(botSum)
 
 	if pRoll >= botRoll {
-		change := p.TTL * 20 / 100
+		pct := mathrand.Intn(14) + 12 // 12–25%
+		change := p.TTL * int64(pct) / 100
 		if change < 1 {
 			change = 1
 		}
@@ -1710,16 +1761,17 @@ func (g *Game) botBattle(p *Player) string {
 			p.TTL = 1
 		}
 		return fmt.Sprintf(botBattleWinMsgs[mathrand.Intn(len(botBattleWinMsgs))],
-			p.Name, pRoll, pSum, botRoll, botSum)
+			p.Name, pRoll, pSum, botRoll, botSum, pct)
 	}
 
-	change := p.TTL * 10 / 100
+	pct := mathrand.Intn(11) + 5 // 5–15%
+	change := p.TTL * int64(pct) / 100
 	if change < 1 {
 		change = 1
 	}
 	p.TTL += change
 	return fmt.Sprintf(botBattleLossMsgs[mathrand.Intn(len(botBattleLossMsgs))],
-		p.Name, pRoll, pSum, botRoll, botSum)
+		p.Name, pRoll, pSum, botRoll, botSum, pct)
 }
 
 // tryStealItem gives the winner a 3% chance to take one item slot from the
@@ -1768,7 +1820,7 @@ func (g *Game) randomEvent(p *Player) string {
 		change = 1
 	}
 
-	switch mathrand.Intn(5) {
+	switch mathrand.Intn(6) {
 	case 0: // TTL calamity
 		p.TTL += change
 		return fmt.Sprintf(calamityMsgs[mathrand.Intn(len(calamityMsgs))], p.Name, pct) +
@@ -1804,7 +1856,7 @@ func (g *Game) randomEvent(p *Player) string {
 		p.Items[slot] = int(math.Max(float64(old)*float64(100+pct)/100, float64(old)+1))
 		return fmt.Sprintf(itemGodsendMsgs[mathrand.Intn(len(itemGodsendMsgs))], p.Name, itemSlots[slot], pct)
 
-	default: // Found item — random slot, level up to 1.5× player level
+	case 4: // Found item — random slot, level up to 1.5× player level
 		slot := mathrand.Intn(10)
 		maxItem := int(math.Max(float64(p.Level)*1.5, 1))
 		found := mathrand.Intn(maxItem) + 1
@@ -1818,6 +1870,20 @@ func (g *Game) randomEvent(p *Player) string {
 		}
 		return fmt.Sprintf(foundItemMsgs[mathrand.Intn(len(foundItemMsgs))],
 			p.Name, articleFor(itemName), itemName, found, equipped, p.itemSum())
+
+	default: // Warp — teleport to a random position; range scales with level.
+		warpRange := p.Level * 10
+		if warpRange > 250 {
+			warpRange = 250
+		}
+		if warpRange < 5 {
+			warpRange = 5
+		}
+		dx := mathrand.Intn(2*warpRange+1) - warpRange
+		dy := mathrand.Intn(2*warpRange+1) - warpRange
+		p.X = (p.X + dx + gridSize*10) % gridSize
+		p.Y = (p.Y + dy + gridSize*10) % gridSize
+		return fmt.Sprintf(warpMsgs[mathrand.Intn(len(warpMsgs))], p.Name, p.X, p.Y)
 	}
 }
 
@@ -1892,6 +1958,9 @@ func (g *Game) teamBattle(online []*Player) []string {
 		wRoll, lRoll, wSum, lSum = rollB, rollA, sumB, sumA
 	}
 
+	winPct := int64(mathrand.Intn(14) + 12) // 12–25%
+	losPct := int64(mathrand.Intn(11) + 5)  // 5–15%
+
 	// Scale TTL change to the weakest winner so no single player is wiped out.
 	minWinnerTTL := winners[0].TTL
 	for _, p := range winners[1:] {
@@ -1899,7 +1968,7 @@ func (g *Game) teamBattle(online []*Player) []string {
 			minWinnerTTL = p.TTL
 		}
 	}
-	change := minWinnerTTL * 20 / 100
+	change := minWinnerTTL * winPct / 100
 
 	for _, p := range winners {
 		p.TTL -= change
@@ -1908,7 +1977,8 @@ func (g *Game) teamBattle(online []*Player) []string {
 		}
 	}
 	for _, p := range losers {
-		p.TTL += change
+		lchange := p.TTL * losPct / 100
+		p.TTL += lchange
 	}
 
 	names := func(team []*Player) string {
@@ -1922,7 +1992,7 @@ func (g *Game) teamBattle(online []*Player) []string {
 	return []string{
 		fmt.Sprintf(teamBattleOpenMsgs[mathrand.Intn(len(teamBattleOpenMsgs))],
 			names(winners), wSum, names(losers), lSum, wRoll, lRoll),
-		fmt.Sprintf(teamBattleWinMsgs[mathrand.Intn(len(teamBattleWinMsgs))], names(winners)),
+		fmt.Sprintf(teamBattleWinMsgs[mathrand.Intn(len(teamBattleWinMsgs))], names(winners), winPct),
 	}
 }
 
@@ -2026,8 +2096,9 @@ func (g *Game) resolveQuest(online []*Player) []string {
 	}
 
 	if allOnline {
+		questPct := mathrand.Intn(11) + 20 // 20–30%
 		for _, qp := range quest.Questers {
-			change := qp.TTL * 25 / 100
+			change := qp.TTL * int64(questPct) / 100
 			qp.TTL -= change
 			if qp.TTL < 1 {
 				qp.TTL = 1
@@ -2035,24 +2106,24 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		}
 		if quest.IsGrid {
 			gridSuccess := []string{
-				"✔ Grid mission complete. " + iB + "%s" + iB + " converged on (" + iB + "%d,%d" + iB + ") and " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
-				iB + "%s" + iB + " reached (" + iB + "%d,%d" + iB + ") — objective met: " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
-				"All questers at (" + iB + "%d,%d" + iB + "). " + iB + "%s" + iB + " completed their mission to " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
+				"✔ Grid mission complete. " + iB + "%s" + iB + " converged on (" + iB + "%d,%d" + iB + ") and " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
+				iB + "%s" + iB + " reached (" + iB + "%d,%d" + iB + ") — objective met: " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
+				"All questers at (" + iB + "%d,%d" + iB + "). " + iB + "%s" + iB + " completed their mission to " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
 			}
 			idx := mathrand.Intn(len(gridSuccess))
 			if idx == 2 {
-				return []string{fmt.Sprintf(gridSuccess[idx], quest.QX, quest.QY, strings.Join(names, ", "), quest.Desc)}
+				return []string{fmt.Sprintf(gridSuccess[idx], quest.QX, quest.QY, strings.Join(names, ", "), quest.Desc, questPct)}
 			}
-			return []string{fmt.Sprintf(gridSuccess[idx], strings.Join(names, ", "), quest.QX, quest.QY, quest.Desc)}
+			return []string{fmt.Sprintf(gridSuccess[idx], strings.Join(names, ", "), quest.QX, quest.QY, quest.Desc, questPct)}
 		}
 		timeSuccess := []string{
-			"✔ Mission complete. " + iB + "%s" + iB + " succeeded in their objective to " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
-			iB + "%s" + iB + " return from the mission to " + iI + "%s" + iI + ". Against expectations, they made it. Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
-			"Confirmed: " + iB + "%s" + iB + " completed the objective — " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
+			"✔ Mission complete. " + iB + "%s" + iB + " succeeded in their objective to " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
+			iB + "%s" + iB + " return from the mission to " + iI + "%s" + iI + ". Against expectations, they made it. Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
+			"Confirmed: " + iB + "%s" + iB + " completed the objective — " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
 		}
 		return []string{
 			fmt.Sprintf(timeSuccess[mathrand.Intn(len(timeSuccess))],
-				strings.Join(names, ", "), quest.Desc),
+				strings.Join(names, ", "), quest.Desc, questPct),
 		}
 	}
 
@@ -2380,11 +2451,19 @@ func (g *Game) questTopicPart() string {
 		return ""
 	}
 	remaining := fmtDuration(int64(time.Until(g.quest.EndsAt).Seconds()))
-	if g.quest.IsGrid {
-		return fmt.Sprintf("🗺 Grid: ("+iB+"%d,%d"+iB+") — "+iI+"%s"+iI+" ["+iB+"%s"+iB+"]",
-			g.quest.QX, g.quest.QY, g.quest.Desc, remaining)
+	names := make([]string, len(g.quest.Questers))
+	for i, qp := range g.quest.Questers {
+		names[i] = qp.Name
 	}
-	return fmt.Sprintf("⚡ "+iI+"%s"+iI+" ["+iB+"%s"+iB+"]", g.quest.Desc, remaining)
+	questers := strings.Join(names, ", ")
+	if g.quest.IsGrid {
+		arrived := len(g.quest.Reached)
+		total := len(g.quest.Questers)
+		return fmt.Sprintf("🗺 Quest: "+iB+"%s"+iB+" → ("+iB+"%d,%d"+iB+") "+iI+"%s"+iI+" ["+iB+"%d/%d"+iB+" arrived, "+iB+"%s"+iB+"]",
+			questers, g.quest.QX, g.quest.QY, g.quest.Desc, arrived, total, remaining)
+	}
+	return fmt.Sprintf("⚡ Quest: "+iB+"%s"+iB+" — "+iI+"%s"+iI+" ["+iB+"%s"+iB+" remaining]",
+		questers, g.quest.Desc, remaining)
 }
 
 // noteEvent records msg as the most recent notable event and immediately
