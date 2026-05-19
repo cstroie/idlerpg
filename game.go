@@ -2095,6 +2095,8 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		names[i] = p.Name
 	}
 
+	questers := strings.Join(names, ", ")
+
 	if allOnline {
 		questPct := mathrand.Intn(11) + 20 // 20–30%
 		for _, qp := range quest.Questers {
@@ -2105,6 +2107,7 @@ func (g *Game) resolveQuest(online []*Player) []string {
 			}
 		}
 		if quest.IsGrid {
+			g.lastEvent = fmt.Sprintf("✔ Quest: %s completed %q at (%d,%d) — phase +%d%%", questers, quest.Desc, quest.QX, quest.QY, questPct)
 			gridSuccess := []string{
 				"✔ Grid mission complete. " + iB + "%s" + iB + " converged on (" + iB + "%d,%d" + iB + ") and " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
 				iB + "%s" + iB + " reached (" + iB + "%d,%d" + iB + ") — objective met: " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
@@ -2112,10 +2115,11 @@ func (g *Game) resolveQuest(online []*Player) []string {
 			}
 			idx := mathrand.Intn(len(gridSuccess))
 			if idx == 2 {
-				return []string{fmt.Sprintf(gridSuccess[idx], quest.QX, quest.QY, strings.Join(names, ", "), quest.Desc, questPct)}
+				return []string{fmt.Sprintf(gridSuccess[idx], quest.QX, quest.QY, questers, quest.Desc, questPct)}
 			}
-			return []string{fmt.Sprintf(gridSuccess[idx], strings.Join(names, ", "), quest.QX, quest.QY, quest.Desc, questPct)}
+			return []string{fmt.Sprintf(gridSuccess[idx], questers, quest.QX, quest.QY, quest.Desc, questPct)}
 		}
+		g.lastEvent = fmt.Sprintf("✔ Quest: %s completed %q — phase +%d%%", questers, quest.Desc, questPct)
 		timeSuccess := []string{
 			"✔ Mission complete. " + iB + "%s" + iB + " succeeded in their objective to " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
 			iB + "%s" + iB + " return from the mission to " + iI + "%s" + iI + ". Against expectations, they made it. Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
@@ -2123,7 +2127,7 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		}
 		return []string{
 			fmt.Sprintf(timeSuccess[mathrand.Intn(len(timeSuccess))],
-				strings.Join(names, ", "), quest.Desc, questPct),
+				questers, quest.Desc, questPct),
 		}
 	}
 
@@ -2141,16 +2145,18 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		if len(reached) > 0 {
 			suffix = fmt.Sprintf("only %s made it to (%d,%d)", strings.Join(reached, ", "), quest.QX, quest.QY)
 		}
+		g.lastEvent = fmt.Sprintf("✘ Quest failed: %s — %s. Penalty p15", questers, suffix)
 		gridFail := []string{
 			"✘ Grid mission failed. " + iB + "%s" + iB + " did not all reach (" + iB + "%d,%d" + iB + ") to " + iI + "%s" + iI + " (%s). Everyone present suffers.",
 			"The rendezvous at (" + iB + "%d,%d" + iB + ") never happened. " + iB + "%s" + iB + " failed to " + iI + "%s" + iI + " (%s). Penalty for all.",
 		}
 		idx := mathrand.Intn(len(gridFail))
 		if idx == 1 {
-			return []string{fmt.Sprintf(gridFail[idx], quest.QX, quest.QY, strings.Join(names, ", "), quest.Desc, suffix)}
+			return []string{fmt.Sprintf(gridFail[idx], quest.QX, quest.QY, questers, quest.Desc, suffix)}
 		}
-		return []string{fmt.Sprintf(gridFail[idx], strings.Join(names, ", "), quest.QX, quest.QY, quest.Desc, suffix)}
+		return []string{fmt.Sprintf(gridFail[idx], questers, quest.QX, quest.QY, quest.Desc, suffix)}
 	}
+	g.lastEvent = fmt.Sprintf("✘ Quest failed: %s — %q. Penalty p15", questers, quest.Desc)
 	timeFail := []string{
 		"✘ Mission failed. " + iB + "%s" + iB + " did not complete: " + iI + "%s" + iI + ". All present suffer a penalty.",
 		iB + "%s" + iB + " abandoned the mission to " + iI + "%s" + iI + ". The consequences fall on everyone still here.",
@@ -2158,9 +2164,9 @@ func (g *Game) resolveQuest(online []*Player) []string {
 	}
 	idx := mathrand.Intn(len(timeFail))
 	if idx == 2 {
-		return []string{fmt.Sprintf(timeFail[idx], quest.Desc, strings.Join(names, ", "))}
+		return []string{fmt.Sprintf(timeFail[idx], quest.Desc, questers)}
 	}
-	return []string{fmt.Sprintf(timeFail[idx], strings.Join(names, ", "), quest.Desc)}
+	return []string{fmt.Sprintf(timeFail[idx], questers, quest.Desc)}
 }
 
 // goodAlignmentEvent pairs p with a random good-aligned online partner and
