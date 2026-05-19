@@ -1437,6 +1437,175 @@ func (g *Game) CmdPos(src, targetNick string) string {
 	return info
 }
 
+// mapRadiusX and mapRadiusY define the half-width and half-height of the
+// ASCII minimap rendered by CmdMap. The full view is (2*X+1) × (2*Y+1).
+const (
+	mapRadiusX = 5
+	mapRadiusY = 3
+)
+
+// CmdMap renders a small ASCII minimap centred on the calling player and
+// returns it as a []string, one element per IRC line. Must be called
+// with the player logged in; returns a single error string otherwise.
+func (g *Game) CmdMap(src string) []string {
+	nick := extractNick(src)
+	g.mu.Lock()
+	self := g.players[strings.ToLower(nick)]
+	if self == nil || !self.Online {
+		g.mu.Unlock()
+		return []string{"You must be logged in to use !map."}
+	}
+
+	sx, sy := self.X, self.Y
+
+	// Snapshot online players and creeps while holding the lock.
+	type playerDot struct {
+		x, y  int
+		label byte
+	}
+	var dots []playerDot
+	for _, p := range g.players {
+		if !p.Online || strings.ToLower(p.Nick) == strings.ToLower(nick) {
+			continue
+		}
+		label := byte('P')
+		if len(p.Name) > 0 {
+			label = p.Name[0]
+			if label >= 'a' && label <= 'z' {
+				label -= 32
+			}
+		}
+		dots = append(dots, playerDot{p.X, p.Y, label})
+	}
+
+	type creepDot struct {
+		x, y    int
+		hostile bool
+		name    string
+	}
+	var cdots []creepDot
+	for _, c := range g.creeps {
+		cdots = append(cdots, creepDot{c.X, c.Y, c.Hostile, c.Name})
+	}
+
+	var questX, questY int
+	hasQuest := g.quest != nil && g.quest.IsGrid
+	if hasQuest {
+		questX, questY = g.quest.QX, g.quest.QY
+	}
+	g.mu.Unlock()
+
+	cols := 2*mapRadiusX + 1
+	rows := 2*mapRadiusY + 1
+
+	// cell builds the display character for the map tile at absolute grid
+	// position (ax, ay). Priority: self > other players > hostile creep >
+	// peaceful creep > quest target > empty.
+	cell := func(ax, ay int) string {
+		if ax == sx && ay == sy {
+			return iB + cCyan + "@" + iC + iB
+		}
+		for _, d := range dots {
+			if d.x == ax && d.y == ay {
+				return iB + string([]byte{d.label}) + iB
+			}
+		}
+		for _, c := range cdots {
+			if c.x == ax && c.y == ay {
+				if c.hostile {
+					return iB + cRed + "!" + iC + iB
+				}
+				return iB + cTeal + "~" + iC + iB
+			}
+		}
+		if hasQuest && ax == questX && ay == questY {
+			return iB + cLime + "*" + iC + iB
+		}
+		return "·"
+	}
+
+	border := "+" + strings.Repeat("-", cols) + "+"
+	lines := make([]string, 0, rows+3)
+	lines = append(lines, border)
+	for dy := -mapRadiusY; dy <= mapRadiusY; dy++ {
+		row := "|"
+		for dx := -mapRadiusX; dx <= mapRadiusX; dx++ {
+			ax := (sx + dx + gridSize) % gridSize
+			ay := (sy + dy + gridSize) % gridSize
+			row += cell(ax, ay)
+		}
+		row += "|"
+		lines = append(lines, row)
+	}
+	lines = append(lines, border)
+
+	// Build a legend of visible entities.
+	var legend []string
+	legend = append(legend, fmt.Sprintf("(%d,%d)", sx, sy))
+	seenPlayers := map[byte]bool{}
+	for _, d := range dots {
+		dx := d.x - sx
+		dy := d.y - sy
+		// Adjust for toroidal wrap.
+		if dx > gridSize/2 {
+			dx -= gridSize
+		} else if dx < -gridSize/2 {
+			dx += gridSize
+		}
+		if dy > gridSize/2 {
+			dy -= gridSize
+		} else if dy < -gridSize/2 {
+			dy += gridSize
+		}
+		if dx >= -mapRadiusX && dx <= mapRadiusX && dy >= -mapRadiusY && dy <= mapRadiusY {
+			if !seenPlayers[d.label] {
+				seenPlayers[d.label] = true
+				legend = append(legend, string([]byte{d.label})+":player")
+			}
+		}
+	}
+	for _, c := range cdots {
+		dx := c.x - sx
+		dy := c.y - sy
+		if dx > gridSize/2 {
+			dx -= gridSize
+		} else if dx < -gridSize/2 {
+			dx += gridSize
+		}
+		if dy > gridSize/2 {
+			dy -= gridSize
+		} else if dy < -gridSize/2 {
+			dy += gridSize
+		}
+		if dx >= -mapRadiusX && dx <= mapRadiusX && dy >= -mapRadiusY && dy <= mapRadiusY {
+			sym := "~"
+			if c.hostile {
+				sym = "!"
+			}
+			legend = append(legend, sym+":"+c.name)
+		}
+	}
+	if hasQuest {
+		qdx := questX - sx
+		qdy := questY - sy
+		if qdx > gridSize/2 {
+			qdx -= gridSize
+		} else if qdx < -gridSize/2 {
+			qdx -= gridSize
+		}
+		if qdy > gridSize/2 {
+			qdy -= gridSize
+		} else if qdy < -gridSize/2 {
+			qdy -= gridSize
+		}
+		if qdx >= -mapRadiusX && qdx <= mapRadiusX && qdy >= -mapRadiusY && qdy <= mapRadiusY {
+			legend = append(legend, "*:quest target")
+		}
+	}
+	lines = append(lines, strings.Join(legend, " | "))
+	return lines
+}
+
 // CmdTop returns the top 5 players sorted by level descending, then by TTL
 // ascending (closest to levelling up wins ties).
 func (g *Game) CmdTop() string {
@@ -1524,22 +1693,21 @@ func (g *Game) IsKnownOffline(nick string) bool {
 	return ok && !p.Online
 }
 
-// SuggestForNick returns a two-line welcome + registration hint for an
-// unregistered nick, or "" if the nick already has a character. Intended for
-// the JOIN handler in main.go to send as a PRIVMSG to the joining user.
-func (g *Game) SuggestForNick(nick string) string {
+// SuggestForNick returns a two-element slice with a welcome message and a
+// registration hint for an unregistered nick, or nil if the nick already has
+// a character. Each element is sent as a separate PRIVMSG by the JOIN handler.
+func (g *Game) SuggestForNick(nick string) []string {
 	g.mu.Lock()
 	_, registered := g.players[strings.ToLower(nick)]
 	g.mu.Unlock()
 	if registered {
-		return ""
+		return nil
 	}
 	name, class := generateSuggestion()
-	return fmt.Sprintf(
-		"Welcome to Void Drift — you are not yet registered.\n"+
-			"Suggested: !register %s <password> %s [m/f/n]  — or choose your own name and class.",
-		name, class,
-	)
+	return []string{
+		"Welcome to Void Drift — you are not yet registered.",
+		fmt.Sprintf("Suggested: !register %s <password> %s [m/f/n]  — or choose your own name and class.", name, class),
+	}
 }
 
 // tick is the main game loop. It fires once per second for as long as the stop

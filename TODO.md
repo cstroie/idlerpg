@@ -51,11 +51,13 @@
 - [x] **Named roadside finds** — roadside item finds now generate a unique item name for the slot.
 - [x] **Varied level-up item narratives** — 5 randomly chosen framings for level-up item drop messages.
 - [x] **Increased event frequencies** — bot battles, server events, and quests all fire more often.
+- [x] **Name suggestion on join** — unregistered players receive a PM with a thematic name/class suggestion from local wordlists.
+- [x] **Player stat tracking** — `CreatedAt`, `LastLogin`, `TotalIdled`, and per-source penalty counters (`PenMesg/Nick/Part/Kick/Quit/Quest/Other`) added to Player; ready for `!stats`.
 
 ## Next Up
 
 - [x] **Creep drops** — hostile creeps have a 40% chance to drop an item on defeat; item level scales with creep level.
-- [ ] **`!map` command** — ASCII minimap showing the player's surroundings, nearby players, and visible creeps.
+- [x] **`!map` command** — 11×7 ASCII minimap centred on the player; shows other players (first letter), hostile creeps (`!`), peaceful creeps (`~`), quest target (`*`), with a legend line.
 - [ ] **Achievements / titles** — unlock flavour titles at milestone levels or for specific feats (first kill, quest veteran, etc.); shown in `!status`.
 - [ ] **Seasonal events** — time-limited server-wide events with unique mechanics tied to real-world calendar dates.
 - [ ] **Player profiles / stats** — track battles won, quests completed, creeps slain, items found; exposed via a `!stats` command.

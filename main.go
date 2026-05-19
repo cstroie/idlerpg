@@ -164,8 +164,8 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 			return
 		}
 		game.OnJoin(line.Src)
-		if sugg := game.SuggestForNick(joiningNick); sugg != "" {
-			c.Privmsg(joiningNick, sugg)
+		for _, msg := range game.SuggestForNick(joiningNick) {
+			c.Privmsg(joiningNick, msg)
 		}
 	})
 	conn.HandleFunc("PART", func(c *irc.Conn, line *irc.Line) { game.OnPart(line.Src) })
@@ -304,6 +304,10 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 		reply(g.CmdItems(src, optArg(fields, 1)))
 	case "!pos":
 		reply(g.CmdPos(src, optArg(fields, 1)))
+	case "!map":
+		for _, line := range g.CmdMap(src) {
+			reply(line)
+		}
 	case "!help":
 		reply(helpText)
 	default:
@@ -317,7 +321,7 @@ const helpText = "Void Drift commands: " +
 	"!login <pass> | !logout | !passwd <oldpass> <newpass> | !gender <m|f|n> | " +
 	"!dualclass <class> (level 12+, permanent) | " +
 	"!align <good|neutral|evil> | " +
-	"!status [nick] | !whoami | !top | !online | !quest | !items [nick] | !pos [nick] | " +
+	"!status [nick] | !whoami | !top | !online | !quest | !items [nick] | !pos [nick] | !map | " +
 	"!gcreate <name> | !ginvite <nick> | !gaccept | !gdecline | " +
 	"!gleave | !gkick <nick> | !ginfo [name] | !gtop"
 
