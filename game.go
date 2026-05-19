@@ -762,6 +762,14 @@ type Player struct {
 	// randomised on each login and are not persisted (position resets on reconnect).
 	X, Y int
 
+	// Activity counters used for achievements and !stats.
+	BattlesWon     int
+	QuestsCompleted int
+	CreepsSlain    int
+
+	// Achievements holds the IDs of earned achievements in unlock order.
+	Achievements []string
+
 	// Timestamps.
 	CreatedAt time.Time
 	LastLogin time.Time
@@ -1393,8 +1401,12 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 	if pronounDisplay == "" {
 		pronounDisplay = "they/them"
 	}
-	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" ("+iI+"%s"+iI+"), the level "+iB+"%d"+iB+" %s "+iI+"%s"+iI+" [%s]%s — phase: "+iB+"%s"+iB+" — Items: "+iB+"%d"+iB+" (focus: %s)",
-		p.Name, pronounDisplay, p.Level, alignNames[p.Alignment], classDisplay, status, questInfo,
+	titleDisplay := ""
+	if t := earnedTitle(p); t != "" {
+		titleDisplay = " " + iB + "[" + t + "]" + iB
+	}
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+"%s ("+iI+"%s"+iI+"), the level "+iB+"%d"+iB+" %s "+iI+"%s"+iI+" [%s]%s — phase: "+iB+"%s"+iB+" — Items: "+iB+"%d"+iB+" (focus: %s)",
+		p.Name, titleDisplay, pronounDisplay, p.Level, alignNames[p.Alignment], classDisplay, status, questInfo,
 		fmtDuration(p.TTL), p.itemSum(), focusDisplay)
 }
 
@@ -1817,6 +1829,7 @@ func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string)
 	for _, p := range online {
 		p.TTL--
 		p.TotalIdled++
+		msgs = append(msgs, g.checkAchievements(p)...)
 		if p.TTL <= 0 {
 			levelUps = append(levelUps, p)
 			continue
@@ -2063,6 +2076,8 @@ func (g *Game) tickCreeps(online []*Player) []string {
 				if drop := g.creepDrop(p, c); drop != "" {
 					msgs = append(msgs, drop)
 				}
+				p.CreepsSlain++
+				msgs = append(msgs, g.checkAchievements(p)...)
 				g.respawnCreep(idx)
 			} else {
 				pct := mathrand.Intn(8) + 7 // 7–14%
@@ -2207,7 +2222,7 @@ func (g *Game) doLevelUp(p *Player) {
 	ttl := p.TTL
 	isum := p.itemSum()
 
-	// Collect eligible opponents while the lock is held.
+	// Collect eligible opponents and check achievements while the lock is held.
 	online := g.onlinePlayers()
 	var opponents []*Player
 	for _, op := range online {
@@ -2215,6 +2230,7 @@ func (g *Game) doLevelUp(p *Player) {
 			opponents = append(opponents, op)
 		}
 	}
+	achMsgs := g.checkAchievements(p)
 	g.mu.Unlock()
 
 	itemDesc := slotName
@@ -2250,6 +2266,9 @@ func (g *Game) doLevelUp(p *Player) {
 		g.updateTopic()
 	}
 
+	for _, m := range achMsgs {
+		g.say(m)
+	}
 	if len(opponents) > 0 {
 		g.battle(p, opponents[mathrand.Intn(len(opponents))])
 	}
@@ -2368,10 +2387,12 @@ func (g *Game) battle(a, b *Player) {
 	}
 	loser.TTL += change
 
+	winner.BattlesWon++
 	wName, lName := winner.Name, loser.Name
 	wSum, lSum := winner.itemSum(), loser.itemSum()
 
 	stealMsg := g.tryStealItem(winner, loser)
+	battleAchMsgs := g.checkAchievements(winner)
 	g.mu.Unlock()
 
 	critNote := ""
@@ -2382,6 +2403,9 @@ func (g *Game) battle(a, b *Player) {
 		wName, wRoll, wSum, lName, lRoll, lSum, critNote, pct))
 	if stealMsg != "" {
 		g.say(stealMsg)
+	}
+	for _, m := range battleAchMsgs {
+		g.say(m)
 	}
 }
 
@@ -2781,12 +2805,15 @@ func (g *Game) resolveQuest(online []*Player) []string {
 
 	if allOnline {
 		questPct := mathrand.Intn(11) + 20 // 20–30%
+		var questAchMsgs []string
 		for _, qp := range quest.Questers {
 			change := qp.TTL * int64(questPct) / 100
 			qp.TTL -= change
 			if qp.TTL < 1 {
 				qp.TTL = 1
 			}
+			qp.QuestsCompleted++
+			questAchMsgs = append(questAchMsgs, g.checkAchievements(qp)...)
 		}
 		if quest.IsGrid {
 			g.lastEvent = fmt.Sprintf("✔ Quest: %s completed %q at (%d,%d) — phase +%d%%", questers, quest.Desc, quest.QX, quest.QY, questPct)
@@ -2796,10 +2823,13 @@ func (g *Game) resolveQuest(online []*Player) []string {
 				"All questers at (" + iB + "%d,%d" + iB + "). " + iB + "%s" + iB + " completed their mission to " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
 			}
 			idx := mathrand.Intn(len(gridSuccess))
+			var msg string
 			if idx == 2 {
-				return []string{fmt.Sprintf(gridSuccess[idx], quest.QX, quest.QY, questers, quest.Desc, questPct)}
+				msg = fmt.Sprintf(gridSuccess[idx], quest.QX, quest.QY, questers, quest.Desc, questPct)
+			} else {
+				msg = fmt.Sprintf(gridSuccess[idx], questers, quest.QX, quest.QY, quest.Desc, questPct)
 			}
-			return []string{fmt.Sprintf(gridSuccess[idx], questers, quest.QX, quest.QY, quest.Desc, questPct)}
+			return append([]string{msg}, questAchMsgs...)
 		}
 		g.lastEvent = fmt.Sprintf("✔ Quest: %s completed %q — phase +%d%%", questers, quest.Desc, questPct)
 		timeSuccess := []string{
@@ -2807,10 +2837,9 @@ func (g *Game) resolveQuest(online []*Player) []string {
 			iB + "%s" + iB + " return from the mission to " + iI + "%s" + iI + ". Against expectations, they made it. Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
 			"Confirmed: " + iB + "%s" + iB + " completed the objective — " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
 		}
-		return []string{
-			fmt.Sprintf(timeSuccess[mathrand.Intn(len(timeSuccess))],
-				questers, quest.Desc, questPct),
-		}
+		return append([]string{
+			fmt.Sprintf(timeSuccess[mathrand.Intn(len(timeSuccess))], questers, quest.Desc, questPct),
+		}, questAchMsgs...)
 	}
 
 	for _, p := range online {

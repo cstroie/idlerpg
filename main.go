@@ -312,6 +312,10 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 		for _, line := range g.CmdStats(src, optArg(fields, 1)) {
 			reply(line)
 		}
+	case "!achievements", "!ach":
+		for _, line := range g.CmdAchievements(src, optArg(fields, 1)) {
+			reply(line)
+		}
 	case "!help":
 		reply(helpText)
 	default:
@@ -325,7 +329,7 @@ const helpText = "Void Drift commands: " +
 	"!login <pass> | !logout | !passwd <oldpass> <newpass> | !gender <m|f|n> | " +
 	"!dualclass <class> (level 12+, permanent) | " +
 	"!align <good|neutral|evil> | " +
-	"!status [nick] | !whoami | !stats [nick] | !top | !online | !quest | !items [nick] | !pos [nick] | !map | " +
+	"!status [nick] | !whoami | !stats [nick] | !achievements [nick] | !top | !online | !quest | !items [nick] | !pos [nick] | !map | " +
 	"!gcreate <name> | !ginvite <nick> | !gaccept | !gdecline | " +
 	"!gleave | !gkick <nick> | !ginfo [name] | !gtop"
 
