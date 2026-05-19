@@ -155,7 +155,8 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 	*resetWHO = registerWHOHandlers(conn, game, botNick, dev)
 
 	conn.HandleFunc("JOIN", func(c *irc.Conn, line *irc.Line) {
-		if extractNick(line.Src) == botNick {
+		joiningNick := extractNick(line.Src)
+		if joiningNick == botNick {
 			// Request ops from ChanServ whenever the bot joins the channel.
 			if chanserv != "" {
 				c.Privmsg(chanserv, fmt.Sprintf("OP %s %s", channel, botNick))
@@ -163,6 +164,9 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 			return
 		}
 		game.OnJoin(line.Src)
+		if sugg := game.SuggestForNick(joiningNick); sugg != "" {
+			c.Privmsg(joiningNick, sugg)
+		}
 	})
 	conn.HandleFunc("PART", func(c *irc.Conn, line *irc.Line) { game.OnPart(line.Src) })
 	conn.HandleFunc("QUIT", func(c *irc.Conn, line *irc.Line) { game.OnQuit(line.Src) })

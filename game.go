@@ -1524,6 +1524,24 @@ func (g *Game) IsKnownOffline(nick string) bool {
 	return ok && !p.Online
 }
 
+// SuggestForNick returns a two-line welcome + registration hint for an
+// unregistered nick, or "" if the nick already has a character. Intended for
+// the JOIN handler in main.go to send as a PRIVMSG to the joining user.
+func (g *Game) SuggestForNick(nick string) string {
+	g.mu.Lock()
+	_, registered := g.players[strings.ToLower(nick)]
+	g.mu.Unlock()
+	if registered {
+		return ""
+	}
+	name, class := generateSuggestion()
+	return fmt.Sprintf(
+		"Welcome to Void Drift — you are not yet registered.\n"+
+			"Suggested: !register %s <password> %s [m/f/n]  — or choose your own name and class.",
+		name, class,
+	)
+}
+
 // tick is the main game loop. It fires once per second for as long as the stop
 // channel remains open (closed by start() on reconnect).
 func (g *Game) tick(stop <-chan struct{}) {
