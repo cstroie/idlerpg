@@ -74,6 +74,8 @@ For service deployments copy `init/voidrift.env.example` to
 values there. Secrets such as `VOIDRIFT_NICKSERV` and `VOIDRIFT_PASSWORD`
 should only ever live in this file, not on the command line.
 
+For a full player-facing guide covering all game mechanics, commands, and strategy tips, see [MANUAL.md](MANUAL.md).
+
 ## Player Commands
 
 ### Character
