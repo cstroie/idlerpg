@@ -270,6 +270,12 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 		dispatchLogin(src, fields, g, reply)
 	case "!logout":
 		reply(g.CmdLogout(src))
+	case "!passwd":
+		if len(fields) < 3 {
+			reply("Usage: !passwd <oldpass> <newpass>")
+			return
+		}
+		reply(g.CmdPasswd(src, fields[1], fields[2]))
 	case "!dualclass":
 		dispatchDualClass(src, fields, g, reply)
 	case "!align":
@@ -298,7 +304,7 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 // helpText is the single-line command reference sent in response to !help.
 const helpText = "Void Drift commands: " +
 	"!register <name> <pass> <class> | " +
-	"!login <pass> | !logout | " +
+	"!login <pass> | !logout | !passwd <oldpass> <newpass> | " +
 	"!dualclass <class> (level 12+, permanent) | " +
 	"!align <good|neutral|evil> | " +
 	"!status [nick] | !whoami | !top | !online | !quest | !items [nick] | !pos [nick] | " +

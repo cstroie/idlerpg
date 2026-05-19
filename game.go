@@ -352,13 +352,13 @@ var battleMsgs = []string{
 
 // critNoteMsgs are inserted as %s into battleMsgs on a critical hit.
 var critNoteMsgs = []string{
-	" " + iB + cRed + "Phase-burst crit!" + iC + iB,
-	" " + iB + cRed + "Null-resonance crit!" + iC + iB,
-	" " + iB + cRed + "Void-crack crit!" + iC + iB,
-	" " + iB + cRed + "Deep Signal crit!" + iC + iB,
-	" " + iB + cRed + "Entropy spike — crit!" + iC + iB,
-	" " + iB + cRed + "Drift-fracture crit!" + iC + iB,
-	" " + iB + cRed + "Pale Architect crit!" + iC + iB,
+	" " + iB + cRed + "Phase-burst overload!" + iC + iB,
+	" " + iB + cRed + "Null-resonance cascade!" + iC + iB,
+	" " + iB + cRed + "Void-crack rupture!" + iC + iB,
+	" " + iB + cRed + "Deep Signal surge!" + iC + iB,
+	" " + iB + cRed + "Entropy spike!" + iC + iB,
+	" " + iB + cRed + "Drift-fracture!" + iC + iB,
+	" " + iB + cRed + "Pale Architect resonance!" + iC + iB,
 }
 
 // botBattle messages. Args: nick, pRoll, pSum, botRoll, botSum, pct.
@@ -1002,6 +1002,31 @@ func (g *Game) CmdLogin(src, pass string) string {
 	g.mu.Unlock()
 	g.save()
 	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+", logged in. Next phase: "+iB+"%s"+iB+".", p.Name, p.Level, p.Class, fmtDuration(p.TTL))
+}
+
+// CmdPasswd changes the password for the calling player after verifying the
+// current password. The player must be online (logged in) to use this command.
+func (g *Game) CmdPasswd(src, oldPass, newPass string) string {
+	nick := extractNick(src)
+	g.mu.Lock()
+	p := g.players[strings.ToLower(nick)]
+	g.mu.Unlock()
+	if p == nil {
+		return "No character registered with that nick."
+	}
+	if !p.Online || p.Addr != src {
+		return "You must be logged in to change your password."
+	}
+	if subtle.ConstantTimeCompare([]byte(p.PassHash), []byte(hashPass(p.PassSalt, oldPass))) != 1 {
+		return "Wrong current password."
+	}
+	salt := newSalt()
+	g.mu.Lock()
+	p.PassSalt = salt
+	p.PassHash = hashPass(salt, newPass)
+	g.mu.Unlock()
+	g.save()
+	return "Password updated."
 }
 
 // CmdLogout marks the calling player offline. No penalty is applied.
