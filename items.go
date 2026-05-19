@@ -35,6 +35,11 @@ const (
 )
 
 // Prefix word lists for each rarity tier, used by generateItemName.
+var normalPrefixes = []string{
+	"Battered", "Worn", "Dented", "Cracked", "Scuffed",
+	"Rusty", "Faded", "Warped", "Chipped", "Tarnished",
+}
+
 var uncommonPrefixes = []string{
 	"Salvaged", "Hardened", "Reclaimed", "Reinforced", "Patched",
 	"Overclocked", "Jury-rigged", "Stripped", "Tempered", "Corroded",
@@ -71,6 +76,8 @@ var slotNouns = map[string][]string{
 func generateItemName(rarity, slot string) string {
 	var prefixes []string
 	switch rarity {
+	case rarityNormal:
+		prefixes = normalPrefixes
 	case rarityReclaimed:
 		prefixes = uncommonPrefixes
 	case rarityArchitect:

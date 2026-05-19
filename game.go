@@ -1677,14 +1677,16 @@ func (g *Game) randomEvent(p *Player) string {
 		slot := mathrand.Intn(10)
 		maxItem := int(math.Max(float64(p.Level)*1.5, 1))
 		found := mathrand.Intn(maxItem) + 1
+		slotName := itemSlots[slot]
+		itemName := generateItemName(rarityNormal, slotName)
 		equipped := "but it's worse than their current one"
 		if found > p.Items[slot] {
 			p.Items[slot] = found
+			p.ItemNames[slot] = itemName
 			equipped = "and equips it"
 		}
-		slotName := itemSlots[slot]
 		return fmt.Sprintf(foundItemMsgs[mathrand.Intn(len(foundItemMsgs))],
-			p.Name, articleFor(slotName), slotName, found, equipped, p.itemSum())
+			p.Name, articleFor(itemName), itemName, found, equipped, p.itemSum())
 	}
 }
 
