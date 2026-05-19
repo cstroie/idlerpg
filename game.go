@@ -333,7 +333,7 @@ var battleMsgs = []string{
 	fNick + " " + fRoll + " outmanoeuvres " + fNick + " " + fRoll + " — brief and brutal.%s Phase: " + fPct + ".",
 	fNick + " " + fRoll + " drives through " + fNick + " " + fRoll + "'s guard without slowing.%s Phase shift: " + fPct + ".",
 	fNick + " " + fRoll + " strips " + fNick + " " + fRoll + "'s timing apart.%s Phase swing: " + fPct + ".",
-	fNick + " " + fRoll + " reads " + fNick + " " + fRoll + " before the engagement starts.%s Phase: " + fPct + ".",
+	fNick + " " + fRoll + " outpaces " + fNick + " " + fRoll + " before the engagement starts.%s Phase: " + fPct + ".",
 	fNick + " " + fRoll + " lands first and doesn't let " + fNick + " " + fRoll + " recover.%s Phase swing: " + fPct + ".",
 	fNick + " " + fRoll + " locks " + fNick + " " + fRoll + " into a losing exchange.%s Phase shift: " + fPct + ".",
 	fNick + " " + fRoll + " collapses " + fNick + " " + fRoll + "'s opening gambit and punishes it.%s Phase: " + fPct + ".",
