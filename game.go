@@ -399,11 +399,11 @@ var teamBattleOpenMsgs = []string{
 
 // teamBattleWinMsgs: winning team announcement. Args: winners.
 var teamBattleWinMsgs = []string{
-	"[" + iB + cLime + "%s" + iC + iB + "] break through. Phase: " + iB + cTeal + "-20%%" + iC + iB + " (weakest anchor).",
+	"[" + iB + cLime + "%s" + iC + iB + "] break through. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest anchor).",
 	"[" + iB + cLime + "%s" + iC + iB + "] hold the line and advance. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest).",
-	"[" + iB + cLime + "%s" + iC + iB + "] take the exchange — cleanly. Phase: " + iB + cTeal + "-20%%" + iC + iB + " (weakest).",
-	"[" + iB + cLime + "%s" + iC + iB + "] collapse the opposing formation. Phase drops " + iB + cTeal + "20%%" + iC + iB + " from weakest anchor.",
-	"[" + iB + cLime + "%s" + iC + iB + "] establish fire superiority and press it. Phase: " + iB + cTeal + "-20%%" + iC + iB + ".",
+	"[" + iB + cLime + "%s" + iC + iB + "] take the exchange — cleanly. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest).",
+	"[" + iB + cLime + "%s" + iC + iB + "] collapse the opposing formation. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest anchor).",
+	"[" + iB + cLime + "%s" + iC + iB + "] establish fire superiority and press it. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + ".",
 	"[" + iB + cLime + "%s" + iC + iB + "] execute the engagement without error. Phase advanced by " + iB + cTeal + "20%%" + iC + iB + " (weakest).",
 }
 
@@ -1771,21 +1771,24 @@ func (g *Game) randomEvent(p *Player) string {
 	switch mathrand.Intn(5) {
 	case 0: // TTL calamity
 		p.TTL += change
-		return fmt.Sprintf(calamityMsgs[mathrand.Intn(len(calamityMsgs))], p.Name, pct)
+		return fmt.Sprintf(calamityMsgs[mathrand.Intn(len(calamityMsgs))], p.Name, pct) +
+			fmt.Sprintf(" Next phase: "+iB+"%s"+iB+".", fmtDuration(p.TTL))
 
 	case 1: // TTL godsend
 		p.TTL -= change
 		if p.TTL < 1 {
 			p.TTL = 1
 		}
-		return fmt.Sprintf(godsendMsgs[mathrand.Intn(len(godsendMsgs))], p.Name, pct)
+		return fmt.Sprintf(godsendMsgs[mathrand.Intn(len(godsendMsgs))], p.Name, pct) +
+			fmt.Sprintf(" Next phase: "+iB+"%s"+iB+".", fmtDuration(p.TTL))
 
 	case 2: // Item calamity — degrade one non-zero slot
 		slot := g.pickNonZeroSlot(p)
 		if slot < 0 {
 			// No items yet; fall back to a TTL calamity.
 			p.TTL += change
-			return fmt.Sprintf(calamityMsgs[0], p.Name, pct)
+			return fmt.Sprintf(calamityMsgs[0], p.Name, pct) +
+			fmt.Sprintf(" Next phase: "+iB+"%s"+iB+".", fmtDuration(p.TTL))
 		}
 		old := p.Items[slot]
 		p.Items[slot] = int(math.Max(float64(old)*float64(100-pct)/100, 1))
@@ -2033,8 +2036,8 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		if quest.IsGrid {
 			gridSuccess := []string{
 				"✔ Grid mission complete. " + iB + "%s" + iB + " converged on (" + iB + "%d,%d" + iB + ") and " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
-				iB + "%s" + iB + " reached (" + iB + "%d,%d" + iB + ") — objective met: " + iI + "%s" + iI + ". Phase: " + iB + cTeal + "-25%%" + iC + iB + ".",
-				"All questers at (" + iB + "%d,%d" + iB + "). " + iB + "%s" + iB + " completed their mission to " + iI + "%s" + iI + ". Phase: " + iB + cTeal + "-25%%" + iC + iB + ".",
+				iB + "%s" + iB + " reached (" + iB + "%d,%d" + iB + ") — objective met: " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
+				"All questers at (" + iB + "%d,%d" + iB + "). " + iB + "%s" + iB + " completed their mission to " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
 			}
 			idx := mathrand.Intn(len(gridSuccess))
 			if idx == 2 {
@@ -2044,7 +2047,7 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		}
 		timeSuccess := []string{
 			"✔ Mission complete. " + iB + "%s" + iB + " succeeded in their objective to " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
-			iB + "%s" + iB + " return from the mission to " + iI + "%s" + iI + ". Against expectations, they made it. Phase: " + iB + cTeal + "-25%%" + iC + iB + ".",
+			iB + "%s" + iB + " return from the mission to " + iI + "%s" + iI + ". Against expectations, they made it. Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
 			"Confirmed: " + iB + "%s" + iB + " completed the objective — " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "25%%" + iC + iB + ".",
 		}
 		return []string{
