@@ -1283,8 +1283,13 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 			focusDisplay += "+" + slot2
 		}
 	}
-	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" %s "+iI+"%s"+iI+" [%s]%s — phase: "+iB+"%s"+iB+" — Items: "+iB+"%d"+iB+" (focus: %s)",
-		p.Name, p.Level, alignNames[p.Alignment], classDisplay, status, questInfo,
+	pronouns := map[string]string{"m": "he/him", "f": "she/her", "n": "they/them"}
+	pronounDisplay := pronouns[p.Gender]
+	if pronounDisplay == "" {
+		pronounDisplay = "they/them"
+	}
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" ("+iI+"%s"+iI+"), the level "+iB+"%d"+iB+" %s "+iI+"%s"+iI+" [%s]%s — phase: "+iB+"%s"+iB+" — Items: "+iB+"%d"+iB+" (focus: %s)",
+		p.Name, pronounDisplay, p.Level, alignNames[p.Alignment], classDisplay, status, questInfo,
 		fmtDuration(p.TTL), p.itemSum(), focusDisplay)
 }
 
