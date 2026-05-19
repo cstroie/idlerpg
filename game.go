@@ -471,6 +471,40 @@ var passByMsgs = []string{
 	fNick + " and " + fNick + " surface at (" + iB + "%d,%d" + iB + ") and go their separate ways.",
 }
 
+// creepHostileWinMsgs: player defeats a hostile creep. Args: playerName, creepName, pRoll, pSum, cRoll, cSum, pct.
+var creepHostileWinMsgs = []string{
+	fNick + " drives off the " + iB + "%s" + iB + " " + fRoll + " vs " + fRoll + ". Phase advanced by " + fGoodPct + ".",
+	"The " + iB + "%s" + iB + " retreats from " + fNick + " " + fRoll + " vs " + fRoll + ". Momentum gained: " + fGoodPct + ".",
+	fNick + " tears through the " + iB + "%s" + iB + " " + fRoll + " vs " + fRoll + ". Phase advanced by " + fGoodPct + ".",
+	"Signal confirmed: " + fNick + " neutralises the " + iB + "%s" + iB + " " + fRoll + " vs " + fRoll + ". Phase advanced by " + fGoodPct + ".",
+	fNick + " outmanoeuvres the " + iB + "%s" + iB + " " + fRoll + " vs " + fRoll + " — it dissolves into static. Phase advanced by " + fGoodPct + ".",
+}
+
+// creepHostileLossMsgs: hostile creep defeats the player. Args: playerName, creepName, pRoll, pSum, cRoll, cSum, pct.
+var creepHostileLossMsgs = []string{
+	"The " + iB + "%s" + iB + " overwhelms " + fNick + " " + fRoll + " vs " + fRoll + ". Phase delayed by " + fBadPct + ".",
+	fNick + " cannot repel the " + iB + "%s" + iB + " " + fRoll + " vs " + fRoll + ". Phase delayed by " + fBadPct + ".",
+	"The " + iB + "%s" + iB + " tears into " + fNick + " " + fRoll + " vs " + fRoll + ". Phase delayed by " + fBadPct + ".",
+	fNick + " flees the " + iB + "%s" + iB + " " + fRoll + " vs " + fRoll + " — barely. Phase delayed by " + fBadPct + ".",
+	"Proximity alarm: the " + iB + "%s" + iB + " finds " + fNick + " " + fRoll + " vs " + fRoll + ". Phase delayed by " + fBadPct + ".",
+}
+
+// creepPeacefulMsgs: player passes a peaceful creep without incident. Args: playerName, creepName, x, y.
+var creepPeacefulMsgs = []string{
+	fNick + " drifts past a " + iB + "%s" + iB + " at (" + iB + "%d,%d" + iB + "). It pays them no mind.",
+	fNick + " spots a " + iB + "%s" + iB + " at (" + iB + "%d,%d" + iB + "). Neither speaks.",
+	fNick + " catches a glimpse of a " + iB + "%s" + iB + " at (" + iB + "%d,%d" + iB + ") before it fades into the static.",
+	fNick + " passes a " + iB + "%s" + iB + " at (" + iB + "%d,%d" + iB + "). It watches without hostility, then drifts on.",
+}
+
+// creepPeacefulBoonMsgs: player gains a bonus from a peaceful creep. Args: playerName, creepName, pct.
+var creepPeacefulBoonMsgs = []string{
+	fNick + " receives route data from a passing " + iB + "%s" + iB + ". Phase advanced by " + fGoodPct + ".",
+	fNick + " assists a wandering " + iB + "%s" + iB + " in exchange for safe passage. Phase advanced by " + fGoodPct + ".",
+	fNick + " accepts a Drift-shard from a " + iB + "%s" + iB + " as it passes. Phase advanced by " + fGoodPct + ".",
+	fNick + " barters signals with a " + iB + "%s" + iB + ". The exchange favours them. Phase advanced by " + fGoodPct + ".",
+}
+
 // questReachedMsgs: quester arrives at grid target. Args: nick, qx, qy.
 var questReachedMsgs = []string{
 	fNick + " punches through to the objective coordinates (" + iB + "%d,%d" + iB + ").",
@@ -643,6 +677,42 @@ type Quest struct {
 	Reached map[string]bool
 }
 
+// creepSpawnCount is the number of creeps active on the grid at any time.
+const creepSpawnCount = 10
+
+// creepTemplate defines the display name, hostility, and level range for a
+// creep archetype. Actual level is randomised within [MinLvl, MaxLvl] at spawn.
+type creepTemplate struct {
+	Name    string
+	Hostile bool
+	MinLvl  int
+	MaxLvl  int
+}
+
+var creepTemplates = []creepTemplate{
+	{"Null-wraith", true, 5, 20},
+	{"Drift Pirate", true, 10, 30},
+	{"Void Predator", true, 18, 45},
+	{"Architect Sentinel", true, 25, 55},
+	{"Signal Vampire", true, 5, 18},
+	{"Entropy Hound", true, 12, 35},
+	{"Phase Remnant", true, 15, 40},
+	{"Pale Marauder", true, 20, 50},
+	{"Wandering Archivist", false, 5, 20},
+	{"Echo Drifter", false, 1, 12},
+	{"Null Shepherd", false, 10, 30},
+	{"Void-touched Pilgrim", false, 5, 18},
+}
+
+// Creep is a non-player entity roaming the grid. Hostile creeps attack players
+// on contact; peaceful creeps may grant a small bonus or simply pass by.
+type Creep struct {
+	Name    string
+	Hostile bool
+	Level   int // item-sum equivalent used in battle rolls
+	X, Y    int
+}
+
 // Player represents a registered Void Drift character. It is persisted to JSON
 // and keyed by lowercase IRC nick in Game.players.
 type Player struct {
@@ -798,6 +868,9 @@ type Game struct {
 	// quest holds the active quest, or nil when none is running.
 	quest *Quest
 
+	// creeps are the NPC entities currently roaming the grid.
+	creeps []*Creep
+
 	// DevMode speeds up TTL by 5× and auto-logins existing channel members on
 	// connect. Set before start() is called; never mutated under mu.
 	DevMode bool
@@ -856,6 +929,7 @@ func newGame(dataFile, guildsFile string, say func(string)) *Game {
 	}
 	g.load()
 	g.loadGuilds()
+	g.spawnCreeps()
 	return g
 }
 
@@ -1438,6 +1512,7 @@ func (g *Game) tick(stop <-chan struct{}) {
 		levelUps, msgs := g.tickPlayers(online)
 		battlePairs, tradePairs, gridMsgs := g.tickGrid(online)
 		msgs = append(msgs, gridMsgs...)
+		msgs = append(msgs, g.tickCreeps(online)...)
 		msgs = append(msgs, g.tickQuestProgress(online)...)
 		msgs = append(msgs, g.tickServerEvents(online)...)
 
@@ -1600,6 +1675,142 @@ func (g *Game) tickGrid(online []*Player) (battlePairs, tradePairs [][2]*Player,
 		}
 	}
 	return
+}
+
+// spawnCreeps populates g.creeps with creepSpawnCount newly placed creeps
+// drawn randomly from creepTemplates. Safe to call without mu (called before
+// start() launches the tick goroutine).
+func (g *Game) spawnCreeps() {
+	g.creeps = make([]*Creep, 0, creepSpawnCount)
+	for i := 0; i < creepSpawnCount; i++ {
+		tmpl := creepTemplates[mathrand.Intn(len(creepTemplates))]
+		lvl := tmpl.MinLvl + mathrand.Intn(tmpl.MaxLvl-tmpl.MinLvl+1)
+		g.creeps = append(g.creeps, &Creep{
+			Name:    tmpl.Name,
+			Hostile: tmpl.Hostile,
+			Level:   lvl,
+			X:       mathrand.Intn(gridSize),
+			Y:       mathrand.Intn(gridSize),
+		})
+	}
+}
+
+// respawnCreep replaces c with a freshly rolled creep of the same template
+// at a random grid position far from its last location.
+// Must be called with mu held.
+func (g *Game) respawnCreep(idx int) {
+	tmpl := creepTemplates[mathrand.Intn(len(creepTemplates))]
+	lvl := tmpl.MinLvl + mathrand.Intn(tmpl.MaxLvl-tmpl.MinLvl+1)
+	g.creeps[idx] = &Creep{
+		Name:    tmpl.Name,
+		Hostile: tmpl.Hostile,
+		Level:   lvl,
+		X:       mathrand.Intn(gridSize),
+		Y:       mathrand.Intn(gridSize),
+	}
+}
+
+// tickCreeps moves every creep one step and checks for player encounters.
+// Hostile creeps battle any co-tile player; peaceful creeps may grant a small
+// bonus. At most one creep encounter fires per tick to avoid flooding.
+// Must be called with mu held.
+func (g *Game) tickCreeps(online []*Player) []string {
+	if len(online) == 0 {
+		// Still move the creeps so they wander even while nobody is logged in.
+		for _, c := range g.creeps {
+			c.X = (c.X + mathrand.Intn(3) - 1 + gridSize) % gridSize
+			c.Y = (c.Y + mathrand.Intn(3) - 1 + gridSize) % gridSize
+		}
+		return nil
+	}
+
+	// Build a player position lookup keyed by (x,y).
+	posMap := make(map[[2]int][]*Player, len(online))
+	for _, p := range online {
+		key := [2]int{p.X, p.Y}
+		posMap[key] = append(posMap[key], p)
+	}
+
+	var msgs []string
+	encountered := false
+	for idx, c := range g.creeps {
+		c.X = (c.X + mathrand.Intn(3) - 1 + gridSize) % gridSize
+		c.Y = (c.Y + mathrand.Intn(3) - 1 + gridSize) % gridSize
+
+		if encountered {
+			continue // one encounter per tick
+		}
+		players := posMap[[2]int{c.X, c.Y}]
+		if len(players) == 0 {
+			continue
+		}
+		// Probability: 1/max(len(online),3) so busier grids don't flood.
+		denom := len(online)
+		if denom < 3 {
+			denom = 3
+		}
+		if mathrand.Intn(denom) != 0 {
+			continue
+		}
+
+		p := players[mathrand.Intn(len(players))]
+		encountered = true
+
+		if c.Hostile {
+			pSum := effectiveItemSum(p)
+			if pSum < 1 {
+				pSum = 1
+			}
+			cSum := c.Level
+			if cSum < 1 {
+				cSum = 1
+			}
+			pRoll := mathrand.Intn(pSum)
+			cRoll := mathrand.Intn(cSum)
+			if pRoll >= cRoll {
+				pct := mathrand.Intn(11) + 10 // 10–20%
+				change := p.TTL * int64(pct) / 100
+				if change < 1 {
+					change = 1
+				}
+				p.TTL -= change
+				if p.TTL < 1 {
+					p.TTL = 1
+				}
+				tmpl := creepHostileWinMsgs[mathrand.Intn(len(creepHostileWinMsgs))]
+				msgs = append(msgs, fmt.Sprintf(tmpl, p.Name, c.Name, pRoll, pSum, cRoll, cSum, pct))
+				g.respawnCreep(idx)
+			} else {
+				pct := mathrand.Intn(8) + 7 // 7–14%
+				change := p.TTL * int64(pct) / 100
+				if change < 1 {
+					change = 1
+				}
+				p.TTL += change
+				tmpl := creepHostileLossMsgs[mathrand.Intn(len(creepHostileLossMsgs))]
+				msgs = append(msgs, fmt.Sprintf(tmpl, p.Name, c.Name, pRoll, pSum, cRoll, cSum, pct))
+			}
+		} else {
+			// Peaceful: 40% chance of a small TTL boon, 60% flavour pass-by.
+			if mathrand.Intn(10) < 4 {
+				pct := mathrand.Intn(6) + 5 // 5–10%
+				change := p.TTL * int64(pct) / 100
+				if change < 1 {
+					change = 1
+				}
+				p.TTL -= change
+				if p.TTL < 1 {
+					p.TTL = 1
+				}
+				tmpl := creepPeacefulBoonMsgs[mathrand.Intn(len(creepPeacefulBoonMsgs))]
+				msgs = append(msgs, fmt.Sprintf(tmpl, p.Name, c.Name, pct))
+			} else {
+				tmpl := creepPeacefulMsgs[mathrand.Intn(len(creepPeacefulMsgs))]
+				msgs = append(msgs, fmt.Sprintf(tmpl, p.Name, c.Name, c.X, c.Y))
+			}
+		}
+	}
+	return msgs
 }
 
 // tickQuestProgress checks whether any grid-quest questers have stepped onto

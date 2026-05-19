@@ -33,6 +33,24 @@
 - [x] **Configurable rates** — expose event frequency multipliers as CLI flags.
 - [x] **Unit tests** — test penalty formula, TTL formula, battle roll logic,
       quest resolution without needing a live IRC connection.
+- [x] **Creeps** — NPCs roaming the 500×500 grid (10 active at all times). Hostile
+      types (Null-wraith, Drift Pirate, Void Predator, Architect Sentinel, etc.) battle
+      players on contact; peaceful types (Wandering Archivist, Echo Drifter, etc.) may
+      grant a small TTL boon or simply pass by. Defeated hostile creeps respawn elsewhere.
+
+## Recently Added
+
+- [x] **Gender pronouns** — he/she/they per player; used across all event messages and `!status` output.
+- [x] **Void storm** — multi-player calamity that hits all online players simultaneously.
+- [x] **`!passwd` command** — allow players to change their password in-game.
+- [x] **Thematic hit terms** — replaced generic "crit" with flavour-consistent hit language.
+- [x] **Sci-fi item slot names** — renamed all item slots to fit the cosmic horror / sci-fi setting.
+- [x] **Quest result in topic** — quest resolution summary is shown in the channel topic.
+- [x] **Quest drift** — richer quest topic display; warp random event added.
+- [x] **Trading encounters** — grid co-tile encounters can result in a trade instead of a battle.
+- [x] **Named roadside finds** — roadside item finds now generate a unique item name for the slot.
+- [x] **Varied level-up item narratives** — 5 randomly chosen framings for level-up item drop messages.
+- [x] **Increased event frequencies** — bot battles, server events, and quests all fire more often.
 
 ## Bugs / Polish
 

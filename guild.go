@@ -25,12 +25,12 @@ var guildBattleOpenMsgs = []string{
 	"The void forces an accounting: [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ", " + iB + cOrange + "%d" + iC + iB + ") meets [" + iB + "%s" + iB + "] (" + iB + cOrange + "%d" + iC + iB + ", " + iB + cOrange + "%d" + iC + iB + ").",
 }
 
-// guildBattleWinMsgs announce the outcome. Args: winnerGuild, winnerMembers, loserMembers.
+// guildBattleWinMsgs announce the outcome. Args: winnerGuild, winnerMembers, loserMembers, winPct, losPct.
 var guildBattleWinMsgs = []string{
-	"[" + iB + cLime + "%s" + iC + iB + "] wins the engagement. " + iB + "%s" + iB + " advance phase by " + iB + cTeal + "20%%" + iC + iB + "; " + iB + "%s" + iB + " are set back " + iB + cRed + "15%%" + iC + iB + ".",
-	"[" + iB + cLime + "%s" + iC + iB + "] breaks the opposing faction. " + iB + "%s" + iB + ": phase " + iB + cTeal + "-20%%" + iC + iB + ". " + iB + "%s" + iB + ": phase " + iB + cRed + "+15%%" + iC + iB + ".",
-	"[" + iB + cLime + "%s" + iC + iB + "] holds the field. " + iB + "%s" + iB + " gain " + iB + cTeal + "20%%" + iC + iB + " phase; " + iB + "%s" + iB + " lose " + iB + cRed + "15%%" + iC + iB + ".",
-	"[" + iB + cLime + "%s" + iC + iB + "] drives the rival cell back. " + iB + "%s" + iB + ": " + iB + cTeal + "-20%%" + iC + iB + " phase. " + iB + "%s" + iB + ": " + iB + cRed + "+15%%" + iC + iB + ".",
+	"[" + iB + cLime + "%s" + iC + iB + "] wins the engagement. " + iB + "%s" + iB + " advance phase by " + iB + cTeal + "%d%%" + iC + iB + "; " + iB + "%s" + iB + " are set back " + iB + cRed + "%d%%" + iC + iB + ".",
+	"[" + iB + cLime + "%s" + iC + iB + "] breaks the opposing faction. " + iB + "%s" + iB + ": phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ". " + iB + "%s" + iB + ": phase delayed by " + iB + cRed + "%d%%" + iC + iB + ".",
+	"[" + iB + cLime + "%s" + iC + iB + "] holds the field. " + iB + "%s" + iB + " gain " + iB + cTeal + "%d%%" + iC + iB + " phase; " + iB + "%s" + iB + " lose " + iB + cRed + "%d%%" + iC + iB + ".",
+	"[" + iB + cLime + "%s" + iC + iB + "] drives the rival cell back. " + iB + "%s" + iB + ": phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ". " + iB + "%s" + iB + ": phase delayed by " + iB + cRed + "%d%%" + iC + iB + ".",
 }
 
 // Guild represents a player-created group. All string fields that hold nicks
@@ -482,15 +482,18 @@ func (g *Game) guildBattle() []string {
 		wRoll, lRoll = rollB, rollA
 	}
 
+	winPct := int64(mathrand.Intn(14) + 12) // 12–25%
+	losPct := int64(mathrand.Intn(11) + 5)  // 5–15%
+
 	for _, p := range winners.online {
-		change := p.TTL * 20 / 100
+		change := p.TTL * winPct / 100
 		p.TTL -= change
 		if p.TTL < 1 {
 			p.TTL = 1
 		}
 	}
 	for _, p := range losers.online {
-		change := p.TTL * 15 / 100
+		change := p.TTL * losPct / 100
 		p.TTL += change
 	}
 
@@ -510,7 +513,9 @@ func (g *Game) guildBattle() []string {
 		fmt.Sprintf(guildBattleWinMsgs[mathrand.Intn(len(guildBattleWinMsgs))],
 			winners.guild.Name,
 			strings.Join(winnerNames, ", "),
-			strings.Join(loserNames, ", ")),
+			winPct,
+			strings.Join(loserNames, ", "),
+			losPct),
 	}
 }
 
