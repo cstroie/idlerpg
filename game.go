@@ -218,6 +218,16 @@ var itemCalamityMsgs = []string{
 	"A temporal rift briefly ages " + fNick + "'s " + fSlot + " by decades. Item degraded by " + fBadPct + ".",
 }
 
+var itemDestroyedMsgs = []string{
+	fNick + "'s " + fSlot + " crumbles to dust — nothing remains.",
+	"The last fragment of " + fNick + "'s " + fSlot + " dissolves into the Void. It is gone.",
+	"Entropic decay claims " + fNick + "'s " + fSlot + " entirely. Slot empty.",
+	"A Null surge reduces " + fNick + "'s " + fSlot + " to scattered particles. Lost.",
+	"The Drift finally consumes " + fNick + "'s " + fSlot + ". Nothing salvageable remains.",
+	"Phase collapse annihilates " + fNick + "'s " + fSlot + " beyond any recovery.",
+	"The Deep Signal unravels " + fNick + "'s " + fSlot + " at the molecular level. Gone.",
+}
+
 var itemGodsendMsgs = []string{
 	fNick + " reverse-engineers Architect threading into their " + fSlot + ". Item improved by " + fGoodPct + ".",
 	"A scavenger trades hard-won schematics — " + fNick + "'s " + fSlot + " is upgraded. Item improved by " + fGoodPct + ".",
@@ -2567,7 +2577,13 @@ func (g *Game) randomEvent(p *Player) string {
 				fmt.Sprintf(" Next phase: "+iB+"%s"+iB+".", fmtDuration(p.TTL)), p)
 		}
 		old := p.Items[slot]
-		p.Items[slot] = int(math.Max(float64(old)*float64(100-pct)/100, 1))
+		degraded := int(math.Max(float64(old)*float64(100-pct)/100, 1))
+		if degraded <= 2 {
+			p.Items[slot] = 0
+			p.ItemNames[slot] = ""
+			return genderize(fmt.Sprintf(itemDestroyedMsgs[mathrand.Intn(len(itemDestroyedMsgs))], p.Name, itemSlots[slot]), p)
+		}
+		p.Items[slot] = degraded
 		return genderize(fmt.Sprintf(itemCalamityMsgs[mathrand.Intn(len(itemCalamityMsgs))], p.Name, itemSlots[slot], pct), p)
 
 	case 3: // Item godsend — improve one slot (creates a level-1 item if all empty)
@@ -2646,9 +2662,16 @@ func (g *Game) voidStorm(online []*Player) []string {
 			if slot >= 0 {
 				ipct := mathrand.Intn(6) + 5 // 5–10%
 				old := p.Items[slot]
-				p.Items[slot] = int(math.Max(float64(old)*float64(100-ipct)/100, 1))
-				msgs = append(msgs, fmt.Sprintf(iB+cCyan+"%s"+iC+iB+"'s "+iI+"%s"+iI+" is damaged by the surge (%d%% degraded).",
-					p.Name, itemSlots[slot], ipct))
+				degraded := int(math.Max(float64(old)*float64(100-ipct)/100, 1))
+				if degraded <= 2 {
+					p.Items[slot] = 0
+					p.ItemNames[slot] = ""
+					msgs = append(msgs, genderize(fmt.Sprintf(itemDestroyedMsgs[mathrand.Intn(len(itemDestroyedMsgs))], p.Name, itemSlots[slot]), p))
+				} else {
+					p.Items[slot] = degraded
+					msgs = append(msgs, fmt.Sprintf(iB+cCyan+"%s"+iC+iB+"'s "+iI+"%s"+iI+" is damaged by the surge (%d%% degraded).",
+						p.Name, itemSlots[slot], ipct))
+				}
 			}
 		}
 	}
