@@ -536,13 +536,13 @@ var creepHostileLossMsgs = []string{
 	"Proximity alarm: the " + iB + "%s" + iB + " finds " + fNick + " " + fRoll + " vs " + fRoll + ". Phase delayed by " + fBadPct + ".",
 }
 
-// creepDropMsgs: player loots a defeated creep. Args: playerName, itemDesc, slotName, itemLevel, equippedNote.
+// creepDropMsgs: player loots a defeated creep. Args: playerName, itemDesc, itemLevel, equippedNote.
 var creepDropMsgs = []string{
-	fNick + " salvages %s from the wreckage — " + fSlot + " level " + fLvl + "%s.",
-	fNick + " recovers %s from the debris — " + fSlot + " level " + fLvl + "%s.",
-	fNick + " strips %s from the dissolving core — " + fSlot + " level " + fLvl + "%s.",
-	fNick + " extracts %s from the ruins — " + fSlot + " level " + fLvl + "%s.",
-	fNick + " claims %s from the shattered entity — " + fSlot + " level " + fLvl + "%s.",
+	fNick + " salvages %s from the wreckage — level " + fLvl + "%s.",
+	fNick + " recovers %s from the debris — level " + fLvl + "%s.",
+	fNick + " strips %s from the dissolving core — level " + fLvl + "%s.",
+	fNick + " extracts %s from the ruins — level " + fLvl + "%s.",
+	fNick + " claims %s from the shattered entity — level " + fLvl + "%s.",
 }
 
 // creepPeacefulMsgs: player passes a peaceful creep without incident. Args: playerName, creepName, x, y.
@@ -2221,7 +2221,7 @@ func (g *Game) creepDrop(p *Player, c *Creep) string {
 		equippedNote = " (equipped)"
 	}
 	return fmt.Sprintf(creepDropMsgs[mathrand.Intn(len(creepDropMsgs))],
-		p.Name, articleFor(itemName)+" "+itemName, slotName, itemLevel, equippedNote)
+		p.Name, articleFor(itemName)+" "+itemName, itemLevel, equippedNote)
 }
 
 // tickCreeps moves every creep one step and checks for player encounters.
@@ -2455,7 +2455,7 @@ func (g *Game) doLevelUp(p *Player) {
 
 	itemDesc := slotName
 	if itemName != "" {
-		itemDesc = fmt.Sprintf("%s (%s)", itemName, slotName)
+		itemDesc = itemName
 	}
 	equipped := ""
 	if improved {
@@ -2696,7 +2696,7 @@ func (g *Game) tryStealItem(winner, loser *Player) string {
 	loser.ItemNames[slot] = ""
 	itemDesc := itemSlots[slot]
 	if stolenName != "" {
-		itemDesc = stolenName + " (" + itemSlots[slot] + ")"
+		itemDesc = stolenName
 	}
 	if stolen > winner.Items[slot] {
 		winner.Items[slot] = stolen
@@ -2743,13 +2743,14 @@ func (g *Game) randomEvent(p *Player) string {
 		}
 		old := p.Items[slot]
 		degraded := old * (100 - pct) / 100
+		label := itemLabel(p, slot)
 		if degraded <= 2 {
 			p.Items[slot] = 0
 			p.ItemNames[slot] = ""
-			return genderize(fmt.Sprintf(itemDestroyedMsgs[mathrand.Intn(len(itemDestroyedMsgs))], p.Name, itemSlots[slot]), p)
+			return genderize(fmt.Sprintf(itemDestroyedMsgs[mathrand.Intn(len(itemDestroyedMsgs))], p.Name, label), p)
 		}
 		p.Items[slot] = degraded
-		return genderize(fmt.Sprintf(itemCalamityMsgs[mathrand.Intn(len(itemCalamityMsgs))], p.Name, itemSlots[slot], pct), p)
+		return genderize(fmt.Sprintf(itemCalamityMsgs[mathrand.Intn(len(itemCalamityMsgs))], p.Name, label, pct), p)
 
 	case 3: // Item godsend — improve one slot (creates a level-1 item if all empty)
 		slot := g.pickNonZeroSlot(p)
@@ -2759,7 +2760,7 @@ func (g *Game) randomEvent(p *Player) string {
 		}
 		old := p.Items[slot]
 		p.Items[slot] = int(math.Max(float64(old)*float64(100+pct)/100, float64(old)+1))
-		return genderize(fmt.Sprintf(itemGodsendMsgs[mathrand.Intn(len(itemGodsendMsgs))], p.Name, itemSlots[slot], pct), p)
+		return genderize(fmt.Sprintf(itemGodsendMsgs[mathrand.Intn(len(itemGodsendMsgs))], p.Name, itemLabel(p, slot), pct), p)
 
 	case 4: // Found item — random slot, level up to 1.5× player level
 		slot := mathrand.Intn(10)

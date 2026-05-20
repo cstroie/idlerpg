@@ -70,6 +70,15 @@ var slotNouns = map[string][]string{
 	"boots":     {"Treads", "Walkers", "Steps", "Striders", "Soles"},
 }
 
+// itemLabel returns the unique item name for a slot if one exists, otherwise
+// falls back to the generic slot name. Safe to call with any slot index 0–9.
+func itemLabel(p *Player, slot int) string {
+	if p.ItemNames[slot] != "" {
+		return p.ItemNames[slot]
+	}
+	return itemSlots[slot]
+}
+
 // generateItemName produces a two-word procedural name ("Prefix Noun") for a
 // non-normal item. The prefix is drawn from the rarity's word list and the noun
 // from the slot's noun list, both chosen uniformly at random.
