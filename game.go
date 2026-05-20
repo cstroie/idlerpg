@@ -372,13 +372,13 @@ var battleMsgs = []string{
 	fNick + " " + fRoll + " tears through " + fNick + " " + fRoll + "'s defences.%s Phase swing: " + fPct + ".",
 	fNick + " " + fRoll + " overwhelms " + fNick + " " + fRoll + " in close contact.%s Phase shift: " + fPct + ".",
 	fNick + " " + fRoll + " finds the gap in " + fNick + " " + fRoll + "'s pattern.%s Phase swing: " + fPct + ".",
-	fNick + " " + fRoll + " outmanoeuvres " + fNick + " " + fRoll + " — brief and brutal.%s Phase: " + fPct + ".",
+	fNick + " " + fRoll + " outmanoeuvres " + fNick + " " + fRoll + " — brief and brutal.%s Phase swing: " + fPct + ".",
 	fNick + " " + fRoll + " drives through " + fNick + " " + fRoll + "'s guard without slowing.%s Phase shift: " + fPct + ".",
 	fNick + " " + fRoll + " strips " + fNick + " " + fRoll + "'s timing apart.%s Phase swing: " + fPct + ".",
-	fNick + " " + fRoll + " outpaces " + fNick + " " + fRoll + " before the engagement starts.%s Phase: " + fPct + ".",
+	fNick + " " + fRoll + " outpaces " + fNick + " " + fRoll + " before the engagement starts.%s Phase swing: " + fPct + ".",
 	fNick + " " + fRoll + " lands first and doesn't let " + fNick + " " + fRoll + " recover.%s Phase swing: " + fPct + ".",
 	fNick + " " + fRoll + " locks " + fNick + " " + fRoll + " into a losing exchange.%s Phase shift: " + fPct + ".",
-	fNick + " " + fRoll + " collapses " + fNick + " " + fRoll + "'s opening gambit and punishes it.%s Phase: " + fPct + ".",
+	fNick + " " + fRoll + " collapses " + fNick + " " + fRoll + "'s opening gambit and punishes it.%s Phase swing: " + fPct + ".",
 }
 
 // critNoteMsgs are inserted as %s into battleMsgs on a critical hit.
