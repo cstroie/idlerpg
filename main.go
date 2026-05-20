@@ -347,19 +347,25 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 	case "!suggest":
 		reply(g.Suggest())
 	case "!help":
-		reply(helpText)
+		reply(helpTextAccount)
+		reply(helpTextReports)
+		reply(helpTextGuilds)
 	default:
 		dispatchGuildCommand(src, fields, g, say, reply)
 	}
 }
 
-// helpText is the single-line command reference sent in response to !help.
-const helpText = "Void Drift commands: " +
+const helpTextAccount = "Account: " +
 	"!register <name> <pass> <class> [m|f|n] (no spaces in any field) | !suggest | " +
-	"!login <pass> | !logout | !passwd <oldpass> <newpass> | !gender <m|f|n> | " +
-	"!rename <name> | !reclass <class> | " +
-	"!align <good|neutral|evil> | " +
-	"!status [nick] | !whoami | !stats [nick] | !achievements [nick] | !top | !all | !online | !quest | !items [nick] | !pos [nick] | !map | " +
+	"!login <pass> | !logout | !passwd <old> <new> | !gender <m|f|n> | " +
+	"!rename <name> | !reclass <class> | !align <good|neutral|evil>"
+
+const helpTextReports = "Reports: " +
+	"!status [nick/name/#] | !whoami | !stats [nick/name/#] | " +
+	"!achievements [nick/name/#] | !items [nick/name/#] | " +
+	"!top | !all | !online | !quest | !pos [nick/name/#] | !map"
+
+const helpTextGuilds = "Guilds: " +
 	"!gcreate <name> | !ginvite <nick> | !gaccept | !gdecline | " +
 	"!gleave | !gkick <nick> | !ginfo [name] | !gtop"
 
