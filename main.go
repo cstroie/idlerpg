@@ -328,7 +328,10 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 	case "!top":
 		reply(g.CmdTop())
 	case "!all":
-		reply(g.CmdAll())
+		for _, line := range g.CmdAll() {
+			reply(line)
+			time.Sleep(300 * time.Millisecond)
+		}
 	case "!online":
 		reply(g.CmdOnline())
 	case "!quest":
