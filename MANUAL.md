@@ -23,10 +23,12 @@ penalties. All commands work in PM or in-channel; PM is strongly preferred.
 !register <name> <password> <class> [m/f/n]
 ```
 
-- `name` — your character's display name (one word; letters, digits, `-`, `'`, `.`)
+- `name` — your character's display name; **one word, no spaces** (e.g. `Sora-Voidborn`)
 - `password` — keep this private; the bot stores it hashed
-- `class` — free-form, any words you like: `Drift Engineer`, `Null Witch`, `Void Monk`
+- `class` — **one word, no spaces** (e.g. `VoidMonk`, `DriftEngineer`, `NullWitch`)
 - gender is optional (`m` / `f` / `n`); affects pronouns in event messages
+
+Not sure what to pick? Type `!suggest` for a random name and class combination.
 
 You auto-login when you join the channel. If the bot misses your join, use:
 
@@ -88,9 +90,10 @@ Higher levels are punished harder for the same action.
 
 ## Classes
 
-Your class name is free-form — pick anything that fits your character. The bot
-derives a **focus slot** from the class name using a deterministic hash. That slot
-counts **double** in every battle calculation.
+Your class name must be a single word (no spaces). Use CamelCase or hyphens to
+combine words: `VoidMonk`, `DriftEngineer`, `Pale-Architect`. The bot derives a
+**focus slot** from the class name using a deterministic hash. That slot counts
+**double** in every battle calculation.
 
 Use `!status` to see which slot your class focuses.
 
@@ -105,6 +108,7 @@ At level 12 or above:
 !dualclass <class>
 ```
 
+The class name must be a single word (no spaces), same as at registration.
 This permanently adds a second class. Both focus slots count double in battles.
 If both classes happen to focus the same slot, that slot counts **triple**.
 Dual-classing cannot be undone.
