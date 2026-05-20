@@ -1922,7 +1922,7 @@ func (g *Game) tick(stop <-chan struct{}) {
 		g.mu.Lock()
 		online := g.onlinePlayers()
 
-		levelUps, msgs := g.tickPlayers(online)
+		levelUps, msgs, driftSave := g.tickPlayers(online)
 		battlePairs, tradePairs, gridMsgs := g.tickGrid(online)
 		msgs = append(msgs, gridMsgs...)
 		msgs = append(msgs, g.tickCreeps(online)...)
@@ -1953,7 +1953,7 @@ func (g *Game) tick(stop <-chan struct{}) {
 		for _, p := range levelUps {
 			g.doLevelUp(p)
 		}
-		if len(levelUps) > 0 {
+		if len(levelUps) > 0 || driftSave {
 			g.save()
 		}
 		if notableEvent {
@@ -1967,7 +1967,7 @@ func (g *Game) tick(stop <-chan struct{}) {
 // tickPlayers decrements TTL for each online player, queues those whose TTL
 // has reached zero for level-up, and fires per-player random/bot-battle/
 // alignment events. Must be called with mu held.
-func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string) {
+func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string, needsSave bool) {
 	for _, p := range online {
 		p.TTL--
 		p.TotalIdled++
@@ -1985,6 +1985,7 @@ func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string)
 				p.Alignment = AlignEvil
 			}
 			p.AlignDriftAt = 0 // mark resolved
+			needsSave = true
 			tmpl := alignDriftMsgs[mathrand.Intn(len(alignDriftMsgs))]
 			msgs = append(msgs, eventHeader("🎲", "ALIGNMENT DRIFT"))
 			msgs = append(msgs, genderize(fmt.Sprintf(tmpl, p.Name, alignNames[p.Alignment]), p))
