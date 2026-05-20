@@ -1940,6 +1940,7 @@ func (g *Game) tickPlayers(online []*Player) (levelUps []*Player, msgs []string)
 			}
 			p.AlignDriftAt = 0 // mark resolved
 			tmpl := alignDriftMsgs[mathrand.Intn(len(alignDriftMsgs))]
+			msgs = append(msgs, eventHeader("🎲", "ALIGNMENT DRIFT"))
 			msgs = append(msgs, genderize(fmt.Sprintf(tmpl, p.Name, alignNames[p.Alignment]), p))
 		}
 		// ~6/day: random individual event (calamity, godsend, item change, find item).
@@ -2254,7 +2255,7 @@ func (g *Game) tickQuestProgress(online []*Player) []string {
 func (g *Game) tickServerEvents(online []*Player) []string {
 	var msgs []string
 	if len(online) > 0 && rateCheck(86400, g.Rates.ServerEvents) {
-		msgs = append(msgs, g.handOfGod(online[mathrand.Intn(len(online))]))
+		msgs = append(msgs, g.handOfGod(online[mathrand.Intn(len(online))])...)
 	}
 	if len(online) >= 2 && rateCheck(86400*2, g.Rates.ServerEvents) {
 		msgs = append(msgs, g.voidStorm(online)...)
@@ -2706,7 +2707,7 @@ func (g *Game) pickNonZeroSlot(p *Player) int {
 // chance to degrade one random item slot per player by 5–10%. Must be called
 // with mu held.
 func (g *Game) voidStorm(online []*Player) []string {
-	msgs := []string{voidStormOpenMsgs[mathrand.Intn(len(voidStormOpenMsgs))]}
+	msgs := []string{eventHeader("🌩️", "VOID STORM"), voidStormOpenMsgs[mathrand.Intn(len(voidStormOpenMsgs))]}
 	for _, p := range online {
 		pct := mathrand.Intn(13) + 8 // 8–20%
 		change := p.TTL * int64(pct) / 100
@@ -2738,21 +2739,22 @@ func (g *Game) voidStorm(online []*Player) []string {
 
 // 80% chance to help (5–75% TTL reduction), 20% chance to hurt (same range).
 // Must be called with mu held.
-func (g *Game) handOfGod(p *Player) string {
+func (g *Game) handOfGod(p *Player) []string {
 	pct := mathrand.Intn(71) + 5 // 5–75%
 	change := p.TTL * int64(pct) / 100
 	if change < 1 {
 		change = 1
 	}
+	header := eventHeader("✋", "HAND OF GOD")
 	if mathrand.Intn(5) == 0 { // 20% hurt
 		p.TTL += change
-		return fmt.Sprintf(handOfGodMsgs[0][mathrand.Intn(len(handOfGodMsgs[0]))], p.Name, pct)
+		return []string{header, fmt.Sprintf(handOfGodMsgs[0][mathrand.Intn(len(handOfGodMsgs[0]))], p.Name, pct)}
 	}
 	p.TTL -= change
 	if p.TTL < 1 {
 		p.TTL = 1
 	}
-	return fmt.Sprintf(handOfGodMsgs[1][mathrand.Intn(len(handOfGodMsgs[1]))], p.Name, pct)
+	return []string{header, fmt.Sprintf(handOfGodMsgs[1][mathrand.Intn(len(handOfGodMsgs[1]))], p.Name, pct)}
 }
 
 // teamBattle selects two random teams of three from the online players and
@@ -2822,6 +2824,7 @@ func (g *Game) teamBattle(online []*Player) []string {
 	}
 
 	return []string{
+		eventHeader("⚔️", "TEAM BATTLE"),
 		fmt.Sprintf(teamBattleOpenMsgs[mathrand.Intn(len(teamBattleOpenMsgs))],
 			names(winners), wSum, names(losers), lSum, wRoll, lRoll),
 		fmt.Sprintf(teamBattleWinMsgs[mathrand.Intn(len(teamBattleWinMsgs))], names(winners), winPct),
@@ -2889,6 +2892,7 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 			"Coordinate lock: " + iB + "%s" + iB + " — objective (" + iB + "%d,%d" + iB + "): " + iI + "%s" + iI + ". You have " + iB + "%s" + iB + ".",
 		}
 		return []string{
+			eventHeader("🌀", "QUEST"),
 			fmt.Sprintf(gridStarts[mathrand.Intn(len(gridStarts))],
 				strings.Join(names, ", "), qx, qy, desc, fmtDuration(int64(duration.Seconds()))),
 		}
@@ -2906,6 +2910,7 @@ func (g *Game) tryStartQuest(online []*Player) []string {
 		"The call goes out to " + iB + "%s" + iB + ": " + iI + "%s" + iI + ". You have " + iB + "%s" + iB + ".",
 	}
 	return []string{
+		eventHeader("🌀", "QUEST"),
 		fmt.Sprintf(timeStarts[mathrand.Intn(len(timeStarts))],
 			strings.Join(names, ", "), desc, fmtDuration(int64(duration.Seconds()))),
 	}
@@ -2964,7 +2969,7 @@ func (g *Game) resolveQuest(online []*Player) []string {
 			} else {
 				msg = fmt.Sprintf(gridSuccess[idx], questers, quest.QX, quest.QY, quest.Desc, questPct)
 			}
-			return append([]string{msg}, questAchMsgs...)
+			return append([]string{eventHeader("✅", "QUEST COMPLETE"), msg}, questAchMsgs...)
 		}
 		g.lastEvent = fmt.Sprintf("✔ Quest: %s completed %q — phase +%d%%", questers, quest.Desc, questPct)
 		timeSuccess := []string{
@@ -2973,6 +2978,7 @@ func (g *Game) resolveQuest(online []*Player) []string {
 			"Confirmed: " + iB + "%s" + iB + " completed the objective — " + iI + "%s" + iI + ". Phase advanced by " + iB + cTeal + "%d%%" + iC + iB + ".",
 		}
 		return append([]string{
+			eventHeader("✅", "QUEST COMPLETE"),
 			fmt.Sprintf(timeSuccess[mathrand.Intn(len(timeSuccess))], questers, quest.Desc, questPct),
 		}, questAchMsgs...)
 	}
@@ -2997,10 +3003,11 @@ func (g *Game) resolveQuest(online []*Player) []string {
 			"The rendezvous at (" + iB + "%d,%d" + iB + ") never happened. " + iB + "%s" + iB + " failed to " + iI + "%s" + iI + " (%s). Penalty for all.",
 		}
 		idx := mathrand.Intn(len(gridFail))
+		header := eventHeader("❌", "QUEST FAILED")
 		if idx == 1 {
-			return []string{fmt.Sprintf(gridFail[idx], quest.QX, quest.QY, questers, quest.Desc, suffix)}
+			return []string{header, fmt.Sprintf(gridFail[idx], quest.QX, quest.QY, questers, quest.Desc, suffix)}
 		}
-		return []string{fmt.Sprintf(gridFail[idx], questers, quest.QX, quest.QY, quest.Desc, suffix)}
+		return []string{header, fmt.Sprintf(gridFail[idx], questers, quest.QX, quest.QY, quest.Desc, suffix)}
 	}
 	g.lastEvent = fmt.Sprintf("✘ Quest failed: %s — %q. Penalty p15", questers, quest.Desc)
 	timeFail := []string{
@@ -3009,10 +3016,11 @@ func (g *Game) resolveQuest(online []*Player) []string {
 		"The objective — " + iI + "%s" + iI + " — is lost. " + iB + "%s" + iB + " did not hold. Everyone pays.",
 	}
 	idx := mathrand.Intn(len(timeFail))
+	header := eventHeader("❌", "QUEST FAILED")
 	if idx == 2 {
-		return []string{fmt.Sprintf(timeFail[idx], quest.Desc, questers)}
+		return []string{header, fmt.Sprintf(timeFail[idx], quest.Desc, questers)}
 	}
-	return []string{fmt.Sprintf(timeFail[idx], questers, quest.Desc)}
+	return []string{header, fmt.Sprintf(timeFail[idx], questers, quest.Desc)}
 }
 
 // goodAlignmentEvent pairs p with a random good-aligned online partner and
@@ -3398,6 +3406,11 @@ func (g *Game) questTopicPart() string {
 	}
 	return fmt.Sprintf("⚡ Quest: "+iB+"%s"+iB+" — "+iI+"%s"+iI+" ["+iB+"%s"+iB+" remaining]",
 		questers, g.quest.Desc, remaining)
+}
+
+// eventHeader returns a bold, emoji-framed header line for major server events.
+func eventHeader(emoji, label string) string {
+	return iB + emoji + " 〔 " + label + " 〕 " + emoji + iB
 }
 
 // noteEvent records msg as the most recent notable event and immediately

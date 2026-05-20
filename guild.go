@@ -507,6 +507,7 @@ func (g *Game) guildBattle() []string {
 	}
 
 	return []string{
+		eventHeader("☠️", "GUILD BATTLE"),
 		fmt.Sprintf(guildBattleOpenMsgs[mathrand.Intn(len(guildBattleOpenMsgs))],
 			winners.guild.Name, winners.power, wRoll,
 			losers.guild.Name, losers.power, lRoll),
