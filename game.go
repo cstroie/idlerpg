@@ -1433,6 +1433,45 @@ func (g *Game) CmdReclass(src, newClass string) string {
 		name, oldClass, newClass, itemSlots[slot], fmtDuration(ttl))
 }
 
+// CmdReclass2 changes the calling player's secondary class. Costs p100.
+// Requires the player to already have a secondary class set via !dualclass.
+func (g *Game) CmdReclass2(src, newClass string) string {
+	newClass = sanitize(newClass)
+	if newClass == "" || strings.ContainsAny(newClass, " \t") {
+		return "Usage: !reclass2 <class>  — one word, no spaces"
+	}
+	if len(newClass) > 50 {
+		return "Class name must be 50 characters or fewer."
+	}
+	if !isValidName(newClass) {
+		return "Class name may only contain letters, digits, hyphens, apostrophes, and dots."
+	}
+	g.mu.Lock()
+	p := g.findByAddr(src)
+	if p == nil {
+		g.mu.Unlock()
+		return "You are not logged in."
+	}
+	if p.Class2 == "" {
+		g.mu.Unlock()
+		return "You do not have a secondary class. Use !dualclass at level 12+ to choose one."
+	}
+	if p.Class2 == newClass {
+		g.mu.Unlock()
+		return "That is already your secondary class."
+	}
+	oldClass := p.Class2
+	p.Class2 = newClass
+	g.applyPenalty(p, 100, penOther)
+	name := p.Name
+	slot := classFocusSlot(newClass)
+	ttl := p.TTL
+	g.mu.Unlock()
+	g.save()
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" forsakes "+iB+"%s"+iB+" and adopts "+iB+"%s"+iB+" as secondary class. Secondary focus shifts to "+iB+"%s"+iB+". Next phase: "+iB+"%s"+iB+".",
+		name, oldClass, newClass, itemSlots[slot], fmtDuration(ttl))
+}
+
 // CmdStatus returns a one-line status summary for the target player. If
 // targetNick is empty, it reports on the calling player.
 func (g *Game) CmdStatus(src, targetNick string) string {

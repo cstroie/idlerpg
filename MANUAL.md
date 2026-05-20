@@ -379,6 +379,7 @@ significant drop.
 !gender <m|f|n>                 — change pronoun setting (costs p50)
 !rename <name>                  — change your character's name (costs p100)
 !reclass <class>                — change your primary class (costs p100)
+!reclass2 <class>               — change your secondary class (costs p100; requires prior !dualclass)
 !logout                         — go offline without leaving the channel
 !online                         — list all currently online players
 !top                            — top 5 players by level
