@@ -2636,7 +2636,7 @@ func (g *Game) randomEvent(p *Player) string {
 				fmt.Sprintf(" Next phase: "+iB+"%s"+iB+".", fmtDuration(p.TTL)), p)
 		}
 		old := p.Items[slot]
-		degraded := int(math.Max(float64(old)*float64(100-pct)/100, 1))
+		degraded := old * (100 - pct) / 100
 		if degraded <= 2 {
 			p.Items[slot] = 0
 			p.ItemNames[slot] = ""
@@ -2721,7 +2721,7 @@ func (g *Game) voidStorm(online []*Player) []string {
 			if slot >= 0 {
 				ipct := mathrand.Intn(6) + 5 // 5–10%
 				old := p.Items[slot]
-				degraded := int(math.Max(float64(old)*float64(100-ipct)/100, 1))
+				degraded := old * (100 - ipct) / 100
 				if degraded <= 2 {
 					p.Items[slot] = 0
 					p.ItemNames[slot] = ""
