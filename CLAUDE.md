@@ -101,6 +101,7 @@ Class                 — character class, free-form text chosen at registration
 Gender                — "m"/"f"/"n"; controls pronoun substitution in event messages
 PassSalt, PassHash    — salted SHA-256 password
 Alignment             — int8: -1 evil, 0 neutral, 1 good
+AlignDriftAt          — level at which a neutral player is forced to good/evil; set to 5–10 at registration, or level+1..5 on first login for pre-existing neutral players; 0 = resolved
 Level, TTL            — level and seconds to next level
 Items [10]int         — item level per slot (implant/beacon/module/weapon/visor/suit/gauntlets/plating/deflector/boots)
 ItemNames [10]string  — unique name for each slot; empty = normal item

@@ -120,6 +120,12 @@ Evil players hit crits more often but fight at a structural disadvantage. Good
 players are weaker individually but gain cooperative windfalls and have a tighter
 crit window.
 
+**Neutrality does not last.** New characters start neutral, but the Void assigns
+a hidden threshold (level 5–10). When they reach it, good or evil is forced upon
+them — announced to the channel. Existing neutral players are assigned a threshold
+of current level + 1–5 on their next login. Use `!align` before then if you want
+to choose your own fate.
+
 ---
 
 ## Battles
