@@ -377,10 +377,16 @@ significant drop.
 ```
 !passwd <oldpass> <newpass>     — change your password
 !gender <m|f|n>                 — change pronoun setting (costs p50)
+!rename <name>                  — change your character's name (costs p100)
+!reclass <class>                — change your primary class (costs p100)
 !logout                         — go offline without leaving the channel
 !online                         — list all currently online players
 !top                            — top 5 players by level
 ```
+
+`!rename` and `!reclass` follow the same no-spaces rule as registration: one word,
+CamelCase or hyphens. Reclassing shifts your focus slot, which may change your
+battle effectiveness.
 
 ---
 

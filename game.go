@@ -1366,6 +1366,73 @@ func (g *Game) CmdDualClass(src, class string) string {
 		name, p.Class, class, itemSlots[slot1], itemSlots[slot2])
 }
 
+// CmdRename changes the calling player's character name. Costs p100.
+func (g *Game) CmdRename(src, newName string) string {
+	newName = sanitize(newName)
+	if newName == "" || strings.ContainsAny(newName, " \t") {
+		return "Usage: !rename <name>  — one word, no spaces"
+	}
+	if len(newName) > 50 {
+		return "Name must be 50 characters or fewer."
+	}
+	if !isValidName(newName) {
+		return "Name may only contain letters, digits, hyphens, apostrophes, and dots."
+	}
+	g.mu.Lock()
+	p := g.findByAddr(src)
+	if p == nil {
+		g.mu.Unlock()
+		return "You are not logged in."
+	}
+	if p.Name == newName {
+		g.mu.Unlock()
+		return "That is already your name."
+	}
+	oldName := p.Name
+	p.Name = newName
+	g.applyPenalty(p, 100, penOther)
+	ttl := p.TTL
+	g.mu.Unlock()
+	g.save()
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" is now known as "+iB+cCyan+"%s"+iC+iB+". Rewriting the record costs them. Next phase: "+iB+"%s"+iB+".",
+		oldName, newName, fmtDuration(ttl))
+}
+
+// CmdReclass changes the calling player's primary class. Costs p100.
+// The focus slot will shift, which may affect battle effectiveness.
+func (g *Game) CmdReclass(src, newClass string) string {
+	newClass = sanitize(newClass)
+	if newClass == "" || strings.ContainsAny(newClass, " \t") {
+		return "Usage: !reclass <class>  — one word, no spaces"
+	}
+	if len(newClass) > 50 {
+		return "Class name must be 50 characters or fewer."
+	}
+	if !isValidName(newClass) {
+		return "Class name may only contain letters, digits, hyphens, apostrophes, and dots."
+	}
+	g.mu.Lock()
+	p := g.findByAddr(src)
+	if p == nil {
+		g.mu.Unlock()
+		return "You are not logged in."
+	}
+	if p.Class == newClass {
+		g.mu.Unlock()
+		return "That is already your class."
+	}
+	oldClass := p.Class
+	p.Class = newClass
+	g.applyPenalty(p, 100, penOther)
+	name := p.Name
+	slot := classFocusSlot(newClass)
+	ttl := p.TTL
+	g.mu.Unlock()
+	g.save()
+	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" abandons "+iB+"%s"+iB+" and becomes a "+iB+"%s"+iB+". Focus shifts to "+iB+"%s"+iB+". Next phase: "+iB+"%s"+iB+".",
+		name, oldClass, newClass, itemSlots[slot], fmtDuration(ttl))
+}
+
 // CmdStatus returns a one-line status summary for the target player. If
 // targetNick is empty, it reports on the calling player.
 func (g *Game) CmdStatus(src, targetNick string) string {

@@ -299,6 +299,18 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 			return
 		}
 		reply(g.CmdGender(src, fields[1]))
+	case "!rename":
+		if len(fields) < 2 {
+			reply("Usage: !rename <name>  — one word, no spaces; costs p100")
+			return
+		}
+		say(g.CmdRename(src, fields[1]))
+	case "!reclass":
+		if len(fields) < 2 {
+			reply("Usage: !reclass <class>  — one word, no spaces; costs p100")
+			return
+		}
+		say(g.CmdReclass(src, fields[1]))
 	case "!dualclass":
 		dispatchDualClass(src, fields, g, reply)
 	case "!align":
@@ -342,6 +354,7 @@ func dispatchCommand(src string, fields []string, g *Game, say, reply func(strin
 const helpText = "Void Drift commands: " +
 	"!register <name> <pass> <class> [m|f|n] (no spaces in any field) | !suggest | " +
 	"!login <pass> | !logout | !passwd <oldpass> <newpass> | !gender <m|f|n> | " +
+	"!rename <name> | !reclass <class> | " +
 	"!dualclass <class> (level 12+, permanent) | " +
 	"!align <good|neutral|evil> | " +
 	"!status [nick] | !whoami | !stats [nick] | !achievements [nick] | !top | !online | !quest | !items [nick] | !pos [nick] | !map | " +

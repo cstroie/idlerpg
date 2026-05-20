@@ -55,6 +55,8 @@ Build and test with `go build ./...` and `go test ./...`.
 | `!logout` | Go offline |
 | `!passwd <old> <new>` | Change password |
 | `!gender <m/f/n>` | Change pronoun setting (costs p50) |
+| `!rename <name>` | Change character name (costs p100) |
+| `!reclass <class>` | Change primary class; focus slot shifts (costs p100) |
 | `!dualclass <class>` | Choose a second class at level 12+ (permanent) |
 | `!align <good\|neutral\|evil>` | Set alignment (costs p75 to change) |
 | `!status [nick]` | Level, TTL, alignment, class focus, title, quest status |
