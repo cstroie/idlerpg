@@ -31,11 +31,11 @@ var suggestClasses = []string{
 
 // generateSuggestion returns a random (name, class) pair drawn from the themed
 // wordlists. Both are single IRC tokens (no spaces) suitable for use directly
-// in !register: name is GivenName-Epithet, class is CamelCase.
+// in !register: name is GivenNameEpithet (CamelCase, no separator), class is CamelCase.
 func generateSuggestion() (name, class string) {
 	given := suggestGivenNames[mathrand.Intn(len(suggestGivenNames))]
 	epithet := suggestEpithets[mathrand.Intn(len(suggestEpithets))]
-	name = given + "-" + epithet
+	name = given + epithet
 	class = suggestClasses[mathrand.Intn(len(suggestClasses))]
 	return
 }
