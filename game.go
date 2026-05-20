@@ -29,6 +29,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1397,10 +1398,8 @@ func (g *Game) CmdStatus(src, targetNick string) string {
 	if targetNick == "" {
 		targetNick = extractNick(src)
 	}
-	g.mu.Lock()
-	p, ok := g.players[strings.ToLower(targetNick)]
-	g.mu.Unlock()
-	if !ok {
+	p := g.findPlayer(targetNick)
+	if p == nil {
 		return fmt.Sprintf("No character found for %s.", targetNick)
 	}
 	status := "offline"
@@ -1436,10 +1435,8 @@ func (g *Game) CmdStats(src, targetNick string) []string {
 	if targetNick == "" {
 		targetNick = extractNick(src)
 	}
-	g.mu.Lock()
-	p, ok := g.players[strings.ToLower(targetNick)]
-	g.mu.Unlock()
-	if !ok {
+	p := g.findPlayer(targetNick)
+	if p == nil {
 		return []string{fmt.Sprintf("No character found for %s.", targetNick)}
 	}
 
@@ -1479,12 +1476,11 @@ func (g *Game) CmdPos(src, targetNick string) string {
 	if targetNick == "" {
 		targetNick = extractNick(src)
 	}
-	g.mu.Lock()
-	p, ok := g.players[strings.ToLower(targetNick)]
-	if !ok {
-		g.mu.Unlock()
+	p := g.findPlayer(targetNick)
+	if p == nil {
 		return fmt.Sprintf("No character found for %s.", targetNick)
 	}
+	g.mu.Lock()
 	if !p.Online {
 		g.mu.Unlock()
 		return fmt.Sprintf("%s is offline and has no position.", p.Name)
@@ -1715,24 +1711,10 @@ func (g *Game) CmdTop() string {
 // CmdAll returns all registered players sorted by level descending, then TTL
 // ascending, one line per player. Online players are marked with *.
 func (g *Game) CmdAll() []string {
-	g.mu.Lock()
-	players := make([]*Player, 0, len(g.players))
-	for _, p := range g.players {
-		players = append(players, p)
-	}
-	g.mu.Unlock()
-
+	players := g.sortedPlayers()
 	if len(players) == 0 {
 		return []string{"No players yet."}
 	}
-
-	sort.Slice(players, func(i, j int) bool {
-		if players[i].Level != players[j].Level {
-			return players[i].Level > players[j].Level
-		}
-		return players[i].TTL < players[j].TTL
-	})
-
 	lines := make([]string, len(players))
 	for i, p := range players {
 		online := " "
@@ -3052,6 +3034,56 @@ func (g *Game) applyPenalty(p *Player, base int64, kind string) {
 // penTotal returns the sum of all per-source penalty counters for p.
 func (p *Player) penTotal() int64 {
 	return p.PenMesg + p.PenNick + p.PenPart + p.PenKick + p.PenQuit + p.PenQuest + p.PenOther
+}
+
+// sortedPlayers returns all players sorted by level desc, TTL asc — the same
+// order used by !all. Safe to call without mu held (acquires it internally).
+func (g *Game) sortedPlayers() []*Player {
+	g.mu.Lock()
+	players := make([]*Player, 0, len(g.players))
+	for _, p := range g.players {
+		players = append(players, p)
+	}
+	g.mu.Unlock()
+	sort.Slice(players, func(i, j int) bool {
+		if players[i].Level != players[j].Level {
+			return players[i].Level > players[j].Level
+		}
+		return players[i].TTL < players[j].TTL
+	})
+	return players
+}
+
+// findPlayer resolves a query to a player using three strategies in order:
+//  1. IRC nick (map key lookup)
+//  2. character name (case-insensitive)
+//  3. !all index (numeric string, 1-based)
+//
+// Returns nil if no player matches. Safe to call without mu held.
+func (g *Game) findPlayer(query string) *Player {
+	lower := strings.ToLower(query)
+	g.mu.Lock()
+	// 1. IRC nick
+	if p, ok := g.players[lower]; ok {
+		g.mu.Unlock()
+		return p
+	}
+	// 2. character name
+	for _, p := range g.players {
+		if strings.ToLower(p.Name) == lower {
+			g.mu.Unlock()
+			return p
+		}
+	}
+	g.mu.Unlock()
+	// 3. !all index
+	if idx, err := strconv.Atoi(query); err == nil && idx >= 1 {
+		sorted := g.sortedPlayers()
+		if idx <= len(sorted) {
+			return sorted[idx-1]
+		}
+	}
+	return nil
 }
 
 // findByAddr returns the online player whose stored Addr matches addr

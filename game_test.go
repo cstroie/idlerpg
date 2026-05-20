@@ -375,6 +375,50 @@ func TestCmdAlignInvalid(t *testing.T) {
 	}
 }
 
+// --- findPlayer ---
+
+func TestFindPlayer(t *testing.T) {
+	g := newTestGame()
+	g.CmdRegister("Alice!a@h", "Alyx", "pass", "Warrior", "n")
+	g.CmdRegister("Bob!b@h", "Bolt", "pass", "Rogue", "n")
+	g.CmdLogin("Alice!a@h", "pass")
+	g.CmdLogin("Bob!b@h", "pass")
+
+	// by IRC nick (lowercase)
+	if p := g.findPlayer("alice"); p == nil || p.Name != "Alyx" {
+		t.Errorf("findPlayer by nick failed: got %v", p)
+	}
+	// by character name (case-insensitive)
+	if p := g.findPlayer("alyx"); p == nil || p.Name != "Alyx" {
+		t.Errorf("findPlayer by name failed: got %v", p)
+	}
+	if p := g.findPlayer("ALYX"); p == nil || p.Name != "Alyx" {
+		t.Errorf("findPlayer by name uppercase failed: got %v", p)
+	}
+	// by !all index — give players distinct levels so sort order is deterministic
+	g.players["alice"].Level = 10
+	g.players["bob"].Level = 5
+	p1 := g.findPlayer("1")
+	p2 := g.findPlayer("2")
+	if p1 == nil || p2 == nil {
+		t.Errorf("findPlayer by index failed: p1=%v p2=%v", p1, p2)
+	}
+	if p1.Name != "Alyx" {
+		t.Errorf("findPlayer index 1 should be highest-level player Alyx, got %s", p1.Name)
+	}
+	if p2.Name != "Bolt" {
+		t.Errorf("findPlayer index 2 should be Bolt, got %s", p2.Name)
+	}
+	// out-of-range index
+	if p := g.findPlayer("99"); p != nil {
+		t.Errorf("findPlayer out-of-range index should return nil, got %v", p)
+	}
+	// unknown
+	if p := g.findPlayer("nobody"); p != nil {
+		t.Errorf("findPlayer unknown should return nil, got %v", p)
+	}
+}
+
 // --- CmdStatus ---
 
 func TestCmdStatus(t *testing.T) {

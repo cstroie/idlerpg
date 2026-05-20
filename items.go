@@ -191,10 +191,8 @@ func (g *Game) CmdItems(src, targetNick string) string {
 	if targetNick == "" {
 		targetNick = extractNick(src)
 	}
-	g.mu.Lock()
-	p, ok := g.players[strings.ToLower(targetNick)]
-	g.mu.Unlock()
-	if !ok {
+	p := g.findPlayer(targetNick)
+	if p == nil {
 		return fmt.Sprintf("No character found for %s.", targetNick)
 	}
 
