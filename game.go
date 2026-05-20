@@ -1764,14 +1764,14 @@ func (g *Game) SuggestForNick(nick string) []string {
 	name, class := generateSuggestion()
 	return []string{
 		"Welcome to Void Drift — you are not yet registered.",
-		fmt.Sprintf("Suggested: !register %s <password> %s [m/f/n]  — or choose your own name and class.", name, class),
+		fmt.Sprintf("Suggestion: !register %s <password> %s [m/f/n]  — or choose your own name and class.", name, class),
 	}
 }
 
 // Suggest returns a fresh name/class suggestion for use with the !suggest command.
 func (g *Game) Suggest() string {
 	name, class := generateSuggestion()
-	return fmt.Sprintf("Suggested: !register %s <password> %s [m/f/n]  — or choose your own name and class.", name, class)
+	return fmt.Sprintf("Suggestion: !register %s <password> %s [m/f/n]  — or choose your own name and class.", name, class)
 }
 
 // tick is the main game loop. It fires once per second for as long as the stop
