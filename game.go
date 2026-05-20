@@ -1015,8 +1015,12 @@ func (g *Game) OnJoin(src string) {
 	g.mu.Unlock()
 	if p != nil && !alreadyOnline {
 		g.save()
-		g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+", enters the void at ("+iB+"%d,%d"+iB+"). Next phase: "+iB+"%s"+iB+".",
-			p.Name, p.Level, p.Class, p.X, p.Y, fmtDuration(p.TTL)))
+		alignSuffix := ""
+		if p.Alignment != AlignNeutral {
+			alignSuffix = " (" + alignNames[p.Alignment] + ")"
+		}
+		g.say(fmt.Sprintf(iB+cCyan+"%s"+iC+iB+", the level "+iB+"%d"+iB+" "+iI+"%s"+iI+"%s, enters the void at ("+iB+"%d,%d"+iB+"). Next phase: "+iB+"%s"+iB+".",
+			p.Name, p.Level, p.Class, alignSuffix, p.X, p.Y, fmtDuration(p.TTL)))
 		g.updateTopic()
 	}
 }
