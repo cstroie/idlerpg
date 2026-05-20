@@ -1829,11 +1829,12 @@ func (g *Game) IsKnownOffline(nick string) bool {
 func (g *Game) SuggestForNick(nick string) []string {
 	g.mu.Lock()
 	_, registered := g.players[strings.ToLower(nick)]
+	taken := g.takenNames()
 	g.mu.Unlock()
 	if registered {
 		return nil
 	}
-	name, class := generateSuggestion()
+	name, class := generateSuggestion(taken)
 	return []string{
 		"Welcome to Void Drift — you are not yet registered.",
 		fmt.Sprintf("Suggestion: !register %s <password> %s [m/f/n]  — or choose your own name and class.", name, class),
@@ -1842,8 +1843,21 @@ func (g *Game) SuggestForNick(nick string) []string {
 
 // Suggest returns a fresh name/class suggestion for use with the !suggest command.
 func (g *Game) Suggest() string {
-	name, class := generateSuggestion()
+	g.mu.Lock()
+	taken := g.takenNames()
+	g.mu.Unlock()
+	name, class := generateSuggestion(taken)
 	return fmt.Sprintf("Suggestion: !register %s <password> %s [m/f/n]  — or choose your own name and class.", name, class)
+}
+
+// takenNames returns a set of lowercase character names currently in use.
+// Must be called with mu held.
+func (g *Game) takenNames() map[string]struct{} {
+	taken := make(map[string]struct{}, len(g.players))
+	for _, p := range g.players {
+		taken[strings.ToLower(p.Name)] = struct{}{}
+	}
+	return taken
 }
 
 // tick is the main game loop. It fires once per second for as long as the stop
