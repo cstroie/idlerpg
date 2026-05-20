@@ -143,7 +143,9 @@ PenMesg/Nick/Part/Kick/Quit/Quest/Other — scaled penalty seconds by source
 - **Bot battle**: bot sum = 1 + highest effectiveItemSum. Win: −12–25% TTL. Loss: +5–15%.
 - **Team battle (3v3)**: sum of effectiveItemSum per team; winner −20%, loser +15% TTL.
 - **Guild battle**: sum of effectiveItemSum of online members; winner −12–25%, loser +5–15%.
-- **Encounter**: co-tile players on the grid; 50% battle, 30% trade, 20% pass-by.
+- **Encounter**: co-tile players on the grid. Outcome depends on guild membership:
+  - *Strangers*: 50% battle, 30% trade, 20% pass-by.
+  - *Guild-mates*: 15% friendly spar, 50% cooperative trade, 35% check-in pass-by.
 - **Post-battle steal**: winner has 3% chance to take a slot from the loser.
 
 ### effectiveItemSum

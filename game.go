@@ -482,6 +482,42 @@ var passByMsgs = []string{
 	fNick + " and " + fNick + " surface at (" + iB + "%d,%d" + iB + ") and go their separate ways.",
 }
 
+// guildMeetMsgs: two guild-mates rendezvous on the grid. Args: nick1, nick2, x, y.
+var guildMeetMsgs = []string{
+	fNick + " and " + fNick + " link up at (" + iB + "%d,%d" + iB + "). Guild colours recognised.",
+	"Guild rendezvous: " + fNick + " and " + fNick + " converge at (" + iB + "%d,%d" + iB + ").",
+	fNick + " spots " + fNick + " at (" + iB + "%d,%d" + iB + ") — friendly signal exchanged.",
+	"The Drift brings " + fNick + " and " + fNick + " together at (" + iB + "%d,%d" + iB + "). At least these two trust each other.",
+	fNick + " and " + fNick + " share the same void at (" + iB + "%d,%d" + iB + "). Allies, for now.",
+}
+
+// guildTradeMsgs: guild-mates exchange gear. Args: nick1, nick2, x, y.
+var guildTradeMsgs = []string{
+	fNick + " and " + fNick + " resupply each other at (" + iB + "%d,%d" + iB + "). The guild endures.",
+	"Coordinated resupply: " + fNick + " and " + fNick + " swap loadouts at (" + iB + "%d,%d" + iB + ").",
+	fNick + " and " + fNick + " pool salvage at (" + iB + "%d,%d" + iB + "). Better together.",
+	"Guild logistics: " + fNick + " and " + fNick + " redistribute gear at (" + iB + "%d,%d" + iB + ").",
+	fNick + " passes kit to " + fNick + " at (" + iB + "%d,%d" + iB + "). No credits change hands.",
+}
+
+// guildPassByMsgs: guild-mates check in and move on. Args: nick1, nick2, x, y.
+var guildPassByMsgs = []string{
+	fNick + " and " + fNick + " exchange status reports at (" + iB + "%d,%d" + iB + ") and split up.",
+	"Brief debrief: " + fNick + " and " + fNick + " cross at (" + iB + "%d,%d" + iB + ") and continue on mission.",
+	fNick + " and " + fNick + " acknowledge each other at (" + iB + "%d,%d" + iB + "). Drift resumes.",
+	"Guild ping at (" + iB + "%d,%d" + iB + "): " + fNick + " confirms " + fNick + " is still in one piece.",
+	fNick + " and " + fNick + " share coordinates (" + iB + "%d,%d" + iB + ") momentarily — then back to the void.",
+}
+
+// guildSpaMsgs: guild-mates spar — friendly contest. Args: nick1, nick2, x, y.
+var guildSparMsgs = []string{
+	fNick + " and " + fNick + " spar at (" + iB + "%d,%d" + iB + "). Friendly, mostly.",
+	"Training drill: " + fNick + " and " + fNick + " trade blows at (" + iB + "%d,%d" + iB + ").",
+	fNick + " and " + fNick + " test each other at (" + iB + "%d,%d" + iB + "). The guild grows stronger.",
+	"Sparring session at (" + iB + "%d,%d" + iB + "): " + fNick + " vs " + fNick + ". All in good faith.",
+	fNick + " challenges " + fNick + " to a quick bout at (" + iB + "%d,%d" + iB + "). They're on the same side — probably.",
+}
+
 // creepHostileWinMsgs: player defeats a hostile creep. Args: playerName, creepName, pRoll, pSum, cRoll, cSum, pct.
 var creepHostileWinMsgs = []string{
 	fNick + " drives off the " + iB + "%s" + iB + " " + fRoll + " vs " + fRoll + ". Phase advanced by " + fGoodPct + ".",
@@ -2085,19 +2121,42 @@ func (g *Game) tickGrid(online []*Player) (battlePairs, tradePairs [][2]*Player,
 			if len(group) >= 2 && mathrand.Intn(len(online)) == 0 {
 				mathrand.Shuffle(len(group), func(i, j int) { group[i], group[j] = group[j], group[i] })
 				a, b := group[0], group[1]
-				roll := mathrand.Intn(10)
-				switch {
-				case roll < 5: // 50% battle
-					battlePairs = append(battlePairs, [2]*Player{a, b})
-					msgs = append(msgs, fmt.Sprintf(encounterMsgs[mathrand.Intn(len(encounterMsgs))],
-						a.Name, b.Name, a.X, a.Y))
-				case roll < 8: // 30% trade
-					tradePairs = append(tradePairs, [2]*Player{a, b})
-					msgs = append(msgs, fmt.Sprintf(tradeMsgs[mathrand.Intn(len(tradeMsgs))],
-						a.Name, b.Name, a.X, a.Y))
-				default: // 20% pass-by
-					msgs = append(msgs, fmt.Sprintf(passByMsgs[mathrand.Intn(len(passByMsgs))],
-						a.Name, b.Name, a.X, a.Y))
+
+				ga := g.playerGuild(strings.ToLower(a.Nick))
+				gb := g.playerGuild(strings.ToLower(b.Nick))
+				sameGuild := ga != nil && gb != nil && ga == gb
+
+				if sameGuild {
+					// Guild-mates: 15% spar, 50% trade, 35% pass-by (roll out of 20).
+					roll := mathrand.Intn(20)
+					switch {
+					case roll < 3: // 15% friendly spar
+						battlePairs = append(battlePairs, [2]*Player{a, b})
+						msgs = append(msgs, fmt.Sprintf(guildSparMsgs[mathrand.Intn(len(guildSparMsgs))],
+							a.Name, b.Name, a.X, a.Y))
+					case roll < 13: // 50% cooperative trade
+						tradePairs = append(tradePairs, [2]*Player{a, b})
+						msgs = append(msgs, fmt.Sprintf(guildTradeMsgs[mathrand.Intn(len(guildTradeMsgs))],
+							a.Name, b.Name, a.X, a.Y))
+					default: // 35% check-in pass-by
+						msgs = append(msgs, fmt.Sprintf(guildPassByMsgs[mathrand.Intn(len(guildPassByMsgs))],
+							a.Name, b.Name, a.X, a.Y))
+					}
+				} else {
+					roll := mathrand.Intn(10)
+					switch {
+					case roll < 5: // 50% battle
+						battlePairs = append(battlePairs, [2]*Player{a, b})
+						msgs = append(msgs, fmt.Sprintf(encounterMsgs[mathrand.Intn(len(encounterMsgs))],
+							a.Name, b.Name, a.X, a.Y))
+					case roll < 8: // 30% trade
+						tradePairs = append(tradePairs, [2]*Player{a, b})
+						msgs = append(msgs, fmt.Sprintf(tradeMsgs[mathrand.Intn(len(tradeMsgs))],
+							a.Name, b.Name, a.X, a.Y))
+					default: // 20% pass-by
+						msgs = append(msgs, fmt.Sprintf(passByMsgs[mathrand.Intn(len(passByMsgs))],
+							a.Name, b.Name, a.X, a.Y))
+					}
 				}
 				break // one encounter per tick to avoid flooding
 			}
