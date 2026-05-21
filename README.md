@@ -141,6 +141,8 @@ go build ./cmd/drifter
 | `-server-pass` | _(none)_ | IRC server password |
 | `-nickserv-pass` | _(none)_ | NickServ IDENTIFY password |
 | `-log` | _(none)_ | Append messages to this file (stdout always active) |
+| `-no-verify` | `false` | Skip TLS certificate verification (insecure) |
+| `-version` | `false` | Print version and exit |
 
 `drifter` reconnects automatically after a 10-second delay on disconnect.
 On a clean shutdown (Ctrl-C, `kill`, service stop) it sends `!logout` first to avoid the quit penalty.
