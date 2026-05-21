@@ -52,11 +52,13 @@ go build ./cmd/drifter
 | `-server-pass` | _(none)_ | IRC server password |
 | `-nickserv-pass` | _(none)_ | NickServ IDENTIFY password |
 | `-log` | _(none)_ | Append plain-text messages to this file (stdout always active with ANSI colours) |
+| `-no-verify` | `false` | Skip TLS certificate verification (insecure) |
+| `-version` | `false` | Print version and exit |
 
 **Behaviour:**
 - After joining, requests `NAMES` and verifies the bot is in the channel before sending `!login`
 - Watches for the bot's channel announcement (`enters the void`) or private reply (`logged in.`) to confirm login
-- Sends `!whoami` 5s after login confirmation to verify online status via the `[online]` field
+- Sends `!whoami` 5s after login confirmation to verify online status via the `[online]` field; repeats every 30–90 minutes to detect silent logouts and re-login if needed
 - On SIGINT/SIGTERM sends `!logout` to the bot before exiting, avoiding the quit penalty
 - Reconnects automatically after 10s on disconnect; resets login state on each reconnect
 - stdout output uses ANSI colours/bold/italic converted from IRC formatting codes; log file receives plain stripped text
