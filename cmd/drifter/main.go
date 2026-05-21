@@ -92,6 +92,10 @@ func main() {
 	// Sending on it cancels the timeout goroutine.
 	var loginAck chan struct{}
 
+	// charName is the character name parsed from the login confirmation,
+	// used to verify presence in !online output.
+	var charName string
+
 	conn.HandleFunc("connected", func(c *irc.Conn, line *irc.Line) {
 		logger.Println("Connected, joining", *channel)
 		if *nickservPass != "" {
@@ -202,6 +206,16 @@ func main() {
 		text := stripIRC(line.Args[1])
 		logger.Printf("[%s] <%s> %s", target, line.Nick, text)
 
+		// Watch for !online reply to verify we appear in the online list.
+		if charName != "" && strings.EqualFold(line.Nick, *botNick) &&
+			!strings.HasPrefix(target, "#") && strings.HasPrefix(text, "Online (") {
+			if strings.Contains(text, charName) {
+				logger.Printf("Online check OK: %s is listed", charName)
+			} else {
+				logger.Printf("WARNING: %s not found in online list: %s", charName, text)
+			}
+		}
+
 		// Watch for the bot's login acknowledgement — either the private reply
 		// ("logged in.") or the channel announcement ("enters the void").
 		if loginAck != nil && strings.EqualFold(line.Nick, *botNick) {
@@ -212,6 +226,20 @@ func main() {
 
 			if isPrivAck || isChanAck {
 				logger.Printf("Login confirmed: %s", text)
+				// Parse character name from "Name, the level N ..." to use with !online.
+				if comma := strings.Index(text, ","); comma > 0 {
+					charName = strings.TrimLeft(text[:comma], " \x02\x03")
+					// strip any remaining IRC formatting
+					charName = stripIRC(charName)
+				}
+				// Verify we are online by DMing !online to the bot.
+				if charName != "" {
+					go func(name string) {
+						time.Sleep(2 * time.Second)
+						logger.Printf("Sending !online to verify presence of %s", name)
+						c.Privmsg(*botNick, "!online")
+					}(charName)
+				}
 				select {
 				case loginAck <- struct{}{}:
 				default:
