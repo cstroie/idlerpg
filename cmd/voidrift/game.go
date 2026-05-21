@@ -2535,7 +2535,7 @@ func (g *Game) doTrade(a, b *Player) {
 	descItem := func(p *Player, slot int) string {
 		name := p.ItemNames[slot]
 		if name != "" {
-			return fmt.Sprintf("%s"+iI+"%s"+iI+" (lv%d)", articleFor(name), name, p.Items[slot])
+			return fmt.Sprintf("%s "+iI+"%s"+iI+" (lv%d)", articleFor(name), name, p.Items[slot])
 		}
 		return fmt.Sprintf("a lv%d "+iI+"%s"+iI, p.Items[slot], itemSlots[slot])
 	}
