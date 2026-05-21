@@ -153,6 +153,11 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 	// reconnect), only the first occurrence sends the welcome DMs.
 	welcomedAt := make(map[string]time.Time)
 
+	// namesInChannel collects nicks from 353 NAMES replies for our channel.
+	// opRequested is reset on each join so we ask ChanServ for ops exactly once.
+	var namesInChannel []string
+	var opRequested bool
+
 	// maybeInvite sends an IRC INVITE to nick if they are a registered player
 	// not currently in the channel, and have not been invited within the last hour.
 	maybeInvite := func(c *irc.Conn, nick string) {
@@ -190,6 +195,8 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 		}
 		joiningNick := extractNick(line.Src)
 		if joiningNick == botNick {
+			namesInChannel = nil
+			opRequested = false
 			return
 		}
 		game.OnJoin(line.Src)
@@ -201,16 +208,27 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 			}
 		}
 	})
-	// 353 is the NAMES reply. When the bot first joins, the server sends the
-	// channel member list. If ChanServ is present, request ops immediately.
+	// 353 NAMREPLY — collect nicks (strip mode prefixes).
 	conn.HandleFunc("353", func(c *irc.Conn, line *irc.Line) {
-		// Args: ["botnick", "=", "#channel", "nick1 nick2 ..."]
 		if len(line.Args) < 4 || !strings.EqualFold(line.Args[2], channel) {
 			return
 		}
 		for _, n := range strings.Fields(line.Args[3]) {
-			n = strings.TrimLeft(n, "@+%~&") // strip mode prefixes
+			namesInChannel = append(namesInChannel, strings.TrimLeft(n, "@+%~&!"))
+		}
+	})
+
+	// 366 ENDOFNAMES — act on the completed member list once per join.
+	conn.HandleFunc("366", func(c *irc.Conn, line *irc.Line) {
+		if len(line.Args) < 2 || !strings.EqualFold(line.Args[1], channel) {
+			return
+		}
+		if opRequested {
+			return
+		}
+		for _, n := range namesInChannel {
 			if strings.EqualFold(n, "ChanServ") {
+				opRequested = true
 				c.Privmsg("ChanServ", fmt.Sprintf("OP %s %s", channel, botNick))
 				return
 			}
