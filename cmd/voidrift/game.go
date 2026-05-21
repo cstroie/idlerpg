@@ -294,44 +294,46 @@ var warpMsgs = []string{
 }
 
 // levelUpItemMsgs are templates for announcing the item found on level-up.
-// Each is a func(name, ttl, article+itemDesc, itemLevel, equipped, label string) string.
-// They vary the narrative framing so the causality doesn't feel mechanical.
-var levelUpItemMsgs = []func(name, level, ttl, aitem string, ilvl int, equipped, label string) string{
+// Each is a func(name, level, ttl, itemPhrase, equipped, label string) string,
+// where itemPhrase is already fully formatted (e.g. "a lv3 suit" or
+// "a lv40 Battered Plates"). They vary the narrative framing so the causality
+// doesn't feel mechanical.
+var levelUpItemMsgs = []func(name, level, ttl, itemPhrase, equipped, label string) string{
 	// Perception: sharpened senses from the phase shift.
-	func(name, level, ttl, aitem string, ilvl int, equipped, label string) string {
+	func(name, level, ttl, itemPhrase, equipped, label string) string {
 		return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%s"+iB+
 			". Senses sharpened by the phase shift, they notice "+iI+"%s"+iI+
-			" of level "+iB+"%d"+iB+" nearby%s%s. Next phase: "+iB+"%s"+iB+".",
-			name, level, aitem, ilvl, equipped, label, ttl)
+			" nearby%s%s. Next phase: "+iB+"%s"+iB+".",
+			name, level, itemPhrase, equipped, label, ttl)
 	},
 	// Dislodged: phase surge shakes something loose.
-	func(name, level, ttl, aitem string, ilvl int, equipped, label string) string {
+	func(name, level, ttl, itemPhrase, equipped, label string) string {
 		return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%s"+iB+
 			". The phase surge dislodges "+iI+"%s"+iI+
-			" of level "+iB+"%d"+iB+" from a nearby wreck%s%s. Next phase: "+iB+"%s"+iB+".",
-			name, level, aitem, ilvl, equipped, label, ttl)
+			" from a nearby wreck%s%s. Next phase: "+iB+"%s"+iB+".",
+			name, level, itemPhrase, equipped, label, ttl)
 	},
 	// Between cycles: scavenged in the drift, unrelated to leveling.
-	func(name, level, ttl, aitem string, ilvl int, equipped, label string) string {
+	func(name, level, ttl, itemPhrase, equipped, label string) string {
 		return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%s"+iB+
 			". Somewhere in the drift, between phase cycles, they recover "+iI+"%s"+iI+
-			" of level "+iB+"%d"+iB+"%s%s. Next phase: "+iB+"%s"+iB+".",
-			name, level, aitem, ilvl, equipped, label, ttl)
+			"%s%s. Next phase: "+iB+"%s"+iB+".",
+			name, level, itemPhrase, equipped, label, ttl)
 	},
 	// Causality inverted: the salvage caused the breakthrough.
-	func(name, level, ttl, aitem string, ilvl int, equipped, label string) string {
+	func(name, level, ttl, itemPhrase, equipped, label string) string {
 		return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%s"+iB+
 			" after salvaging "+iI+"%s"+iI+
-			" of level "+iB+"%d"+iB+"%s%s — it gave them the edge they needed. Next phase: "+iB+"%s"+iB+".",
-			name, level, aitem, ilvl, equipped, label, ttl)
+			"%s%s — it gave them the edge they needed. Next phase: "+iB+"%s"+iB+".",
+			name, level, itemPhrase, equipped, label, ttl)
 	},
 	// Separate fact: item mentioned as an aside.
-	func(name, level, ttl, aitem string, ilvl int, equipped, label string) string {
+	func(name, level, ttl, itemPhrase, equipped, label string) string {
 		return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" has attained level "+iB+"%s"+iB+
 			". Next phase: "+iB+"%s"+iB+
 			". They've also been carrying "+iI+"%s"+iI+
-			" of level "+iB+"%d"+iB+"%s%s.",
-			name, level, ttl, aitem, ilvl, equipped, label)
+			"%s%s.",
+			name, level, ttl, itemPhrase, equipped, label)
 	},
 }
 
@@ -2459,6 +2461,7 @@ func (g *Game) doLevelUp(p *Player) {
 	if itemName != "" {
 		itemDesc = itemName
 	}
+	itemPhrase := fmt.Sprintf("%s lv%d %s", articleFor(itemDesc), itemLevel, itemDesc)
 	equipped := ""
 	if improved {
 		equipped = " (equipped!)"
@@ -2469,7 +2472,7 @@ func (g *Game) doLevelUp(p *Player) {
 	}
 	tmpl := levelUpItemMsgs[mathrand.Intn(len(levelUpItemMsgs))]
 	g.say(genderize(tmpl(name, fmt.Sprintf("%d", level), fmtDuration(ttl),
-		articleFor(itemDesc)+" "+itemDesc, itemLevel, equipped, label)+
+		itemPhrase, equipped, label)+
 		fmt.Sprintf(" [item total: "+iB+"%d"+iB+"]", isum), &Player{Gender: gender}))
 
 	switch itemRarity {
