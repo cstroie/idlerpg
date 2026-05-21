@@ -88,6 +88,10 @@ func main() {
 	// namesInChannel collects nicks from the NAMES reply for our channel.
 	var namesInChannel []string
 
+	// loginAck is non-nil while we are waiting for the bot's !login reply.
+	// Sending on it cancels the timeout goroutine.
+	var loginAck chan struct{}
+
 	conn.HandleFunc("connected", func(c *irc.Conn, line *irc.Line) {
 		logger.Println("Connected, joining", *channel)
 		if *nickservPass != "" {
@@ -132,7 +136,17 @@ func main() {
 		for _, n := range namesInChannel {
 			if strings.EqualFold(n, *botNick) {
 				logger.Printf("Bot %s is in %s, sending !login", *botNick, *channel)
+				loginAck = make(chan struct{}, 1)
+				ack := loginAck
 				c.Privmsg(*botNick, "!login "+*gamePass)
+				go func() {
+					select {
+					case <-ack:
+						// acknowledged — nothing to do
+					case <-time.After(10 * time.Second):
+						logger.Printf("WARNING: no !login reply from %s after 10s", *botNick)
+					}
+				}()
 				return
 			}
 		}
@@ -187,6 +201,20 @@ func main() {
 		target := line.Args[0]
 		text := stripIRC(line.Args[1])
 		logger.Printf("[%s] <%s> %s", target, line.Nick, text)
+
+		// Watch for the bot's private !login reply.
+		if loginAck != nil && strings.EqualFold(line.Nick, *botNick) && !strings.HasPrefix(target, "#") {
+			if strings.Contains(text, "logged in.") {
+				logger.Printf("Login confirmed: %s", text)
+			} else {
+				logger.Printf("WARNING: login failed: %s", text)
+			}
+			select {
+			case loginAck <- struct{}{}:
+			default:
+			}
+			loginAck = nil
+		}
 	})
 
 	conn.HandleFunc("NOTICE", func(c *irc.Conn, line *irc.Line) {
