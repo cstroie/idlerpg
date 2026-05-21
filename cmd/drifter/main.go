@@ -9,8 +9,10 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/signal"
 	"regexp"
 	"strings"
+	"syscall"
 	"time"
 
 	irc "github.com/fluffle/goirc/client"
@@ -69,6 +71,17 @@ func main() {
 	cfg.Pass = *serverPass
 	cfg.NewNick = func(n string) string { return n + "_" }
 	conn := irc.Client(cfg)
+
+	// On SIGINT/SIGTERM, send !logout then exit cleanly (no quit penalty).
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigs
+		logger.Println("Shutting down, sending !logout")
+		conn.Privmsg(*botNick, "!logout")
+		time.Sleep(500 * time.Millisecond) // let the message flush
+		os.Exit(0)
+	}()
 
 	connected := make(chan bool)
 
