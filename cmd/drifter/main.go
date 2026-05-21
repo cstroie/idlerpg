@@ -189,6 +189,7 @@ func main() {
 	nickservPass := flag.String("nickserv-pass",  "",          "NickServ IDENTIFY password")
 	botNick      := flag.String("bot",           "VoidKeeper", "Bot nick to send !login to")
 	logFile      := flag.String("log",           "",           "Log file path (appended; empty = stdout only)")
+	noVerify     := flag.Bool("no-verify",       false,        "Skip TLS certificate verification (insecure)")
 	showVersion  := flag.Bool("version",         false,        "Print version and exit")
 	flag.Parse()
 
@@ -239,7 +240,7 @@ func main() {
 	cfg.Server = *server
 	if *ssl {
 		host, _, _ := net.SplitHostPort(*server)
-		cfg.SSLConfig = &tls.Config{ServerName: host}
+		cfg.SSLConfig = &tls.Config{ServerName: host, InsecureSkipVerify: *noVerify}
 	}
 	cfg.Pass = *serverPass
 	cfg.NewNick = func(n string) string { return n + "_" }

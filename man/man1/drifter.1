@@ -70,6 +70,11 @@ Default: none.
 NickServ password; sends \fBIDENTIFY\fR on connect.
 Default: none.
 .TP
+.B \-no\-verify
+Skip TLS certificate verification.
+Only meaningful with \fB\-ssl\fR.
+Use with caution: disables man-in-the-middle protection.
+.TP
 .BI \-log " file"
 Append plain-text (IRC codes stripped) messages to this file.
 Standard output always receives the ANSI-coloured version.
