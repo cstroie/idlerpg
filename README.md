@@ -66,7 +66,6 @@ order: **flag > env var > compiled-in default**.
 | `-data` | `VOIDRIFT_DATA` | `voidrift.json` | Player data file (created automatically) |
 | `-guilds` | `VOIDRIFT_GUILDS` | `guilds.json` | Guild data file (created automatically) |
 | `-nickserv-pass` | `VOIDRIFT_NICKSERV_PASS` | _(none)_ | NickServ password — sends `IDENTIFY` on connect |
-| `-chanserv` | `VOIDRIFT_CHANSERV` | `ChanServ` | ChanServ nick to request ops from on channel join (set empty to disable) |
 | `-log` | `VOIDRIFT_LOG` | _(none)_ | Append log output to this file (stdout always active) |
 | `-dev` | `VOIDRIFT_DEV` | `false` | Dev mode: auto-login channel members on startup, TTL 14× faster, event rates ×10, creep levels capped at 10, quests require only 1 player at level 0+ |
 | `-rate-player` | `VOIDRIFT_RATE_PLAYER` | `1.0` | Per-player event rate multiplier — scales random events and bot battles |

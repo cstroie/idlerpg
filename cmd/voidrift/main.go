@@ -33,7 +33,6 @@ var envFlags = map[string]string{
 	"VOIDRIFT_GUILDS":      "guilds",
 	"VOIDRIFT_DEV":         "dev",
 	"VOIDRIFT_NICKSERV_PASS": "nickserv-pass",
-	"VOIDRIFT_CHANSERV":    "chanserv",
 	"VOIDRIFT_LOG":         "log",
 	"VOIDRIFT_RATE_PLAYER": "rate-player",
 	"VOIDRIFT_RATE_ALIGN":  "rate-align",
@@ -65,7 +64,6 @@ func main() {
 	guildsFile  := flag.String("guilds",       "guilds.json",          "Guild data file")
 	dev         := flag.Bool("dev",            false,                  "Dev mode: TTL ÷14, event rates ×10, weak creeps, easy quests, auto-login channel members")
 	nickservPass := flag.String("nickserv-pass", "",                   "NickServ password (sends IDENTIFY on connect)")
-	chanserv    := flag.String("chanserv",     "ChanServ",             "ChanServ nick to request ops from on channel join (set empty to disable)")
 	logFile     := flag.String("log",          "",                     "Append log output to this file (stdout always active)")
 	ratePlayer  := flag.Float64("rate-player", 1.0,                   "Per-player event rate multiplier (random events, bot battles; default 1.0 = ~1/day each)")
 	rateAlign   := flag.Float64("rate-align",  1.0,                   "Alignment event rate multiplier (good/evil daily events; default 1.0)")
@@ -123,7 +121,7 @@ func main() {
 	// never invite the same player more than once per hour.
 	invitedAt := make(map[string]time.Time)
 	var resetWHO func()
-	registerHandlers(conn, game, say, connected, *channel, *nick, *nickservPass, *chanserv, *dev, invitedAt, &resetWHO)
+	registerHandlers(conn, game, say, connected, *channel, *nick, *nickservPass, *dev, invitedAt, &resetWHO)
 
 	// Reconnect loop: on disconnect wait 10 s then try again indefinitely.
 	for {
@@ -147,7 +145,7 @@ func main() {
 // say, and the configuration values it needs via closure. The connected channel
 // receives false whenever the connection drops so the reconnect loop can fire.
 func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected chan bool,
-	channel, botNick, nickservPass, chanserv string, dev bool, invitedAt map[string]time.Time, resetWHO *func()) {
+	channel, botNick, nickservPass string, dev bool, invitedAt map[string]time.Time, resetWHO *func()) {
 
 	// welcomedAt deduplicates suggest messages: if the JOIN handler fires more
 	// than once for the same nick within 10 seconds (e.g. due to goirc sending
@@ -192,10 +190,6 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 		}
 		joiningNick := extractNick(line.Src)
 		if joiningNick == botNick {
-			// Request ops from ChanServ whenever the bot joins the channel.
-			if chanserv != "" {
-				c.Privmsg(chanserv, fmt.Sprintf("OP %s %s", channel, botNick))
-			}
 			return
 		}
 		game.OnJoin(line.Src)
@@ -207,6 +201,22 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 			}
 		}
 	})
+	// 353 is the NAMES reply. When the bot first joins, the server sends the
+	// channel member list. If ChanServ is present, request ops immediately.
+	conn.HandleFunc("353", func(c *irc.Conn, line *irc.Line) {
+		// Args: ["botnick", "=", "#channel", "nick1 nick2 ..."]
+		if len(line.Args) < 4 || !strings.EqualFold(line.Args[2], channel) {
+			return
+		}
+		for _, n := range strings.Fields(line.Args[3]) {
+			n = strings.TrimLeft(n, "@+%~&") // strip mode prefixes
+			if strings.EqualFold(n, "ChanServ") {
+				c.Privmsg("ChanServ", fmt.Sprintf("OP %s %s", channel, botNick))
+				return
+			}
+		}
+	})
+
 	conn.HandleFunc("PART", func(c *irc.Conn, line *irc.Line) { game.OnPart(line.Src) })
 	conn.HandleFunc("QUIT", func(c *irc.Conn, line *irc.Line) { game.OnQuit(line.Src) })
 	conn.HandleFunc("NICK", func(c *irc.Conn, line *irc.Line) { game.OnNick(line.Src, line.Args[0]) })
