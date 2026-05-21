@@ -10,7 +10,7 @@ commands and game mechanics.
 ## Build & Run
 
 ```bash
-go build
+go build ./cmd/voidrift
 ./voidrift -server irc.libera.chat:6667 -nick VoidKeeper -channel "#voidrift"
 ```
 
@@ -35,15 +35,22 @@ Build and test with `go build ./...` and `go test ./...`.
 
 ## Code Structure
 
+```
+cmd/
+  voidrift/   — the game bot binary
+  drifter/    — minimal idle IRC client (connects, !login, idles)
+go.mod / go.sum — module: github.com/cstroie/voidrift, requires fluffle/goirc
+```
+
 | File | Purpose |
 |------|---------|
-| `main.go` | IRC wiring (fluffle/goirc), event dispatch, command routing, reconnect loop |
-| `game.go` | Core game logic: players, tick loop, events, battles, quests, grid, creeps, persistence |
-| `guild.go` | Guild system: data types, commands, guild battles, persistence |
-| `items.go` | Unique/legendary item system: rarity tiers, name generation, `!items` command |
-| `achievements.go` | Achievement/title system: definitions, unlock checks, `!achievements` command |
-| `suggest.go` | Themed name/class wordlists; `SuggestForNick` used in JOIN handler |
-| `go.mod` / `go.sum` | Module: `github.com/cstroie/voidrift`, requires `fluffle/goirc` |
+| `cmd/voidrift/main.go` | IRC wiring (fluffle/goirc), event dispatch, command routing, reconnect loop |
+| `cmd/voidrift/game.go` | Core game logic: players, tick loop, events, battles, quests, grid, creeps, persistence |
+| `cmd/voidrift/guild.go` | Guild system: data types, commands, guild battles, persistence |
+| `cmd/voidrift/items.go` | Unique/legendary item system: rarity tiers, name generation, `!items` command |
+| `cmd/voidrift/achievements.go` | Achievement/title system: definitions, unlock checks, `!achievements` command |
+| `cmd/voidrift/suggest.go` | Themed name/class wordlists; `SuggestForNick` used in JOIN handler |
+| `cmd/drifter/main.go` | Idle IRC client: connects, joins channel, sends `!login`, logs all messages |
 
 ## Player Commands
 
