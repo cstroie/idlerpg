@@ -31,6 +31,25 @@ All flags:
 | `-rate-align` | `1.0` | Alignment event multiplier (good/evil daily events) |
 | `-rate-server` | `1.0` | Server event multiplier (team battles, guild battles, quests, Hand of God) |
 
+### drifter
+
+```bash
+go build ./cmd/drifter
+./drifter -nick MyChar -game-pass s3cr3t
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-nick` | _(required)_ | IRC nick |
+| `-game-pass` | _(required)_ | Game password sent via DM to the bot |
+| `-bot` | `VoidKeeper` | Bot nick to DM `!login` to |
+| `-channel` | `#voidrift` | Channel to join |
+| `-server` | `irc.libera.chat:6667` | IRC server `host:port` |
+| `-ssl` | `false` | Use SSL |
+| `-server-pass` | _(none)_ | IRC server password |
+| `-nickserv-pass` | _(none)_ | NickServ IDENTIFY password |
+| `-log` | _(none)_ | Append messages to this file (stdout always active) |
+
 Build and test with `go build ./...` and `go test ./...`.
 
 ## Code Structure
@@ -50,7 +69,7 @@ go.mod / go.sum — module: github.com/cstroie/voidrift, requires fluffle/goirc
 | `cmd/voidrift/items.go` | Unique/legendary item system: rarity tiers, name generation, `!items` command |
 | `cmd/voidrift/achievements.go` | Achievement/title system: definitions, unlock checks, `!achievements` command |
 | `cmd/voidrift/suggest.go` | Themed name/class wordlists; `SuggestForNick` used in JOIN handler |
-| `cmd/drifter/main.go` | Idle IRC client: connects, joins channel, sends `!login`, logs all messages |
+| `cmd/drifter/main.go` | Idle IRC client: connects, joins channel, DMs `!login` to the bot, logs all messages |
 
 ## Player Commands
 
