@@ -17,7 +17,7 @@ import (
 )
 
 var (
-	ircColorRe      = regexp.MustCompile(`\x03[0-9]{0,2}(?:,[0-9]{1,2})?`)
+	ircColorRe         = regexp.MustCompile(`\x03[0-9]{0,2}(?:,[0-9]{1,2})?`)
 	ircControlReplacer = strings.NewReplacer(
 		"\x02", "", "\x04", "", "\x0F", "", "\x16", "",
 		"\x1D", "", "\x1E", "", "\x1F", "",
@@ -31,15 +31,15 @@ func stripIRC(s string) string {
 }
 
 func main() {
-	server     := flag.String("server",       "irc.libera.chat:6667", "IRC server host:port")
-	nick       := flag.String("nick",         "",  "IRC nick (required)")
-	gamePass   := flag.String("game-pass",    "",  "Game password for !login (required)")
-	channel    := flag.String("channel",      "#voidrift", "Channel to join")
-	ssl        := flag.Bool("ssl",            false, "Use SSL")
-	serverPass := flag.String("server-pass",  "",  "IRC server password")
-	nickservPass := flag.String("nickserv-pass", "", "NickServ IDENTIFY password")
-	botNick    := flag.String("bot",          "VoidKeeper", "Bot nick to send !login to")
-	logFile    := flag.String("log",          "",  "Log file path (appended; empty = stdout only)")
+	server       := flag.String("server",       "irc.libera.chat:6667", "IRC server host:port")
+	nick         := flag.String("nick",         "",           "IRC nick (required)")
+	gamePass     := flag.String("game-pass",    "",           "Game password for !login (required)")
+	channel      := flag.String("channel",      "#voidrift",  "Channel to join")
+	ssl          := flag.Bool("ssl",            false,        "Use SSL")
+	serverPass   := flag.String("server-pass",  "",           "IRC server password")
+	nickservPass := flag.String("nickserv-pass", "",          "NickServ IDENTIFY password")
+	botNick      := flag.String("bot",          "VoidKeeper", "Bot nick to send !login to")
+	logFile      := flag.String("log",          "",           "Log file path (appended; empty = stdout only)")
 	flag.Parse()
 
 	if *nick == "" {
@@ -72,6 +72,9 @@ func main() {
 
 	connected := make(chan bool)
 
+	// namesInChannel collects nicks from the NAMES reply for our channel.
+	var namesInChannel []string
+
 	conn.HandleFunc("connected", func(c *irc.Conn, line *irc.Line) {
 		logger.Println("Connected, joining", *channel)
 		if *nickservPass != "" {
@@ -80,13 +83,90 @@ func main() {
 		c.Join(*channel)
 	})
 
-	// Send !login once we confirm our own JOIN to the channel.
+	// On our own JOIN: request NAMES to verify the bot is present.
 	conn.HandleFunc("JOIN", func(c *irc.Conn, line *irc.Line) {
-		joiningNick := line.Nick
+		if !strings.EqualFold(line.Nick, *nick) {
+			return
+		}
 		target := line.Args[0]
-		if strings.EqualFold(joiningNick, *nick) && strings.EqualFold(target, *channel) {
-			logger.Printf("Joined %s, sending !login to %s", *channel, *botNick)
-			c.Privmsg(*botNick, "!login "+*gamePass)
+		if !strings.EqualFold(target, *channel) {
+			return
+		}
+		logger.Printf("Joined %s, checking for bot %s", *channel, *botNick)
+		namesInChannel = nil
+		c.Raw("NAMES " + *channel)
+	})
+
+	// 353: NAMREPLY — collect nicks (strip mode prefixes like @, +, ~).
+	conn.HandleFunc("353", func(c *irc.Conn, line *irc.Line) {
+		// Args: [me, "=", #channel, "nick1 nick2 ..."]
+		if len(line.Args) < 4 {
+			return
+		}
+		if !strings.EqualFold(line.Args[2], *channel) {
+			return
+		}
+		for _, n := range strings.Fields(line.Args[3]) {
+			namesInChannel = append(namesInChannel, strings.TrimLeft(n, "@+~&%!"))
+		}
+	})
+
+	// 366: ENDOFNAMES — bot presence check, then send !login if found.
+	conn.HandleFunc("366", func(c *irc.Conn, line *irc.Line) {
+		if len(line.Args) < 2 || !strings.EqualFold(line.Args[1], *channel) {
+			return
+		}
+		for _, n := range namesInChannel {
+			if strings.EqualFold(n, *botNick) {
+				logger.Printf("Bot %s is in %s, sending !login", *botNick, *channel)
+				c.Privmsg(*botNick, "!login "+*gamePass)
+				return
+			}
+		}
+		logger.Printf("WARNING: bot %s not found in %s — !login not sent; will retry on next JOIN", *botNick, *channel)
+	})
+
+	// 403: No such channel.
+	conn.HandleFunc("403", func(c *irc.Conn, line *irc.Line) {
+		ch := ""
+		if len(line.Args) > 1 {
+			ch = line.Args[1]
+		}
+		logger.Printf("ERROR: channel %s does not exist", ch)
+	})
+
+	// 473/474/475: Cannot join (invite-only, banned, wrong key).
+	for _, num := range []string{"473", "474", "475"} {
+		num := num
+		conn.HandleFunc(num, func(c *irc.Conn, line *irc.Line) {
+			reason := map[string]string{
+				"473": "invite-only",
+				"474": "banned",
+				"475": "wrong channel key",
+			}[num]
+			logger.Printf("ERROR: cannot join %s: %s", *channel, reason)
+		})
+	}
+
+	// Bot joins or parts — log for visibility.
+	conn.HandleFunc("JOIN", func(c *irc.Conn, line *irc.Line) {
+		if strings.EqualFold(line.Nick, *botNick) && strings.EqualFold(line.Args[0], *channel) {
+			logger.Printf("Bot %s joined %s", *botNick, *channel)
+		}
+	})
+	conn.HandleFunc("PART", func(c *irc.Conn, line *irc.Line) {
+		if strings.EqualFold(line.Nick, *botNick) && strings.EqualFold(line.Args[0], *channel) {
+			logger.Printf("WARNING: bot %s left %s", *botNick, *channel)
+		}
+	})
+	conn.HandleFunc("QUIT", func(c *irc.Conn, line *irc.Line) {
+		if strings.EqualFold(line.Nick, *botNick) {
+			logger.Printf("WARNING: bot %s quit", *botNick)
+		}
+	})
+	conn.HandleFunc("KICK", func(c *irc.Conn, line *irc.Line) {
+		if len(line.Args) >= 2 && strings.EqualFold(line.Args[1], *botNick) {
+			logger.Printf("WARNING: bot %s was kicked from %s", *botNick, *channel)
 		}
 	})
 
