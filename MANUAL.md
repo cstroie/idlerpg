@@ -14,8 +14,8 @@ word costs time. Every action sets you back. Silence is power.
 
 ## Getting Started
 
-Send these commands as a **private message to the bot** to avoid triggering talk
-penalties. All commands work in PM or in-channel; PM is strongly preferred.
+Send these commands as a **direct message to the bot** to avoid triggering talk
+penalties. All commands work in DM or in-channel; DM is strongly preferred.
 
 ### 1. Register
 

@@ -53,7 +53,7 @@
 - [x] **Named roadside finds** — roadside item finds now generate a unique item name for the slot.
 - [x] **Varied level-up item narratives** — 5 randomly chosen framings for level-up item drop messages.
 - [x] **Increased event frequencies** — bot battles, server events, and quests all fire more often.
-- [x] **Name suggestion on join** — unregistered players receive a PM with a thematic name/class suggestion from local wordlists.
+- [x] **Name suggestion on join** — unregistered players receive a DM with a thematic name/class suggestion from local wordlists.
 - [x] **Player stat tracking** — `CreatedAt`, `LastLogin`, `TotalIdled`, and per-source penalty counters (`PenMesg/Nick/Part/Kick/Quit/Quest/Other`) added to Player; ready for `!stats`.
 
 ## Next Up
