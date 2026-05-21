@@ -33,9 +33,12 @@ All flags:
 
 ### drifter
 
+Minimal idle IRC client: connects, joins the channel, DMs `!login` to the bot, and idles.
+
 ```bash
 go build ./cmd/drifter
 ./drifter -nick MyChar -game-pass s3cr3t
+./drifter -nick MyChar -game-pass s3cr3t -log voidrift-MyChar.log
 ```
 
 | Flag | Default | Description |
@@ -48,7 +51,16 @@ go build ./cmd/drifter
 | `-ssl` | `false` | Use SSL |
 | `-server-pass` | _(none)_ | IRC server password |
 | `-nickserv-pass` | _(none)_ | NickServ IDENTIFY password |
-| `-log` | _(none)_ | Append messages to this file (stdout always active) |
+| `-log` | _(none)_ | Append plain-text messages to this file (stdout always active with ANSI colours) |
+
+**Behaviour:**
+- After joining, requests `NAMES` and verifies the bot is in the channel before sending `!login`
+- Watches for the bot's channel announcement (`enters the void`) or private reply (`logged in.`) to confirm login
+- Sends `!whoami` 5s after login confirmation to verify online status via the `[online]` field
+- On SIGINT/SIGTERM sends `!logout` to the bot before exiting, avoiding the quit penalty
+- Reconnects automatically after 10s on disconnect; resets login state on each reconnect
+- stdout output uses ANSI colours/bold/italic converted from IRC formatting codes; log file receives plain stripped text
+- Warns on: bot absent from channel, join errors (403/473/474/475), login failure, no login reply within 10s, bot PART/QUIT/KICK
 
 Build and test with `go build ./...` and `go test ./...`.
 
