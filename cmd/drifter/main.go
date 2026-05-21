@@ -262,7 +262,7 @@ func main() {
 	// namesInChannel collects nicks from the NAMES reply for our channel.
 	var namesInChannel []string
 
-	// loginSent prevents sending !login more than once per session.
+	// loginSent prevents sending !login more than once until a retry is needed.
 	var loginSent bool
 
 	// loginAck is non-nil while we are waiting for the bot's !login reply.
@@ -270,6 +270,48 @@ func main() {
 
 	// whoamiPending is true while we are waiting for the !whoami reply.
 	var whoamiPending bool
+
+	// sendLogin sends !login to the bot and sets up the ack timeout.
+	// Must be called from a goroutine (not while holding IRC event locks).
+	var sendLogin func(c *irc.Conn, reason string)
+	sendLogin = func(c *irc.Conn, reason string) {
+		loginSent = true
+		loginAck = make(chan struct{}, 1)
+		ack := loginAck
+		logger.Printf("Sending !login to %s (%s)", *botNick, reason)
+		c.Privmsg(*botNick, "!login "+*gamePass)
+		go func() {
+			select {
+			case <-ack:
+			case <-time.After(10 * time.Second):
+				logger.Printf("WARNING: no !login reply from %s after 10s — retrying", *botNick)
+				delay := time.Duration(5+mathrand.Intn(10)) * time.Second
+				time.Sleep(delay)
+				loginSent = false
+				sendLogin(c, "login ack timeout")
+			}
+		}()
+	}
+
+	// verifyOnline sends !whoami and retries login if not confirmed online.
+	verifyOnline := func(c *irc.Conn) {
+		go func() {
+			time.Sleep(5 * time.Second)
+			whoamiPending = true
+			logger.Println("Sending !whoami to verify online status")
+			c.Privmsg(*botNick, "!whoami")
+			// Timeout: if no whoami reply arrives, retry login.
+			time.Sleep(15 * time.Second)
+			if whoamiPending {
+				whoamiPending = false
+				logger.Printf("WARNING: no !whoami reply after 15s — retrying login")
+				delay := time.Duration(5+mathrand.Intn(10)) * time.Second
+				time.Sleep(delay)
+				loginSent = false
+				sendLogin(c, "whoami timeout")
+			}
+		}()
+	}
 
 	conn.HandleFunc("connected", func(c *irc.Conn, line *irc.Line) {
 		logger.Println("Connected, joining", *channel)
@@ -318,18 +360,8 @@ func main() {
 		}
 		for _, n := range namesInChannel {
 			if strings.EqualFold(n, *botNick) {
-				loginSent = true
-				logger.Printf("Bot %s is in %s, sending !login", *botNick, *channel)
-				loginAck = make(chan struct{}, 1)
-				ack := loginAck
-				c.Privmsg(*botNick, "!login "+*gamePass)
-				go func() {
-					select {
-					case <-ack:
-					case <-time.After(10 * time.Second):
-						logger.Printf("WARNING: no !login reply from %s after 10s", *botNick)
-					}
-				}()
+				logger.Printf("Bot %s is in %s", *botNick, *channel)
+				sendLogin(c, "initial join")
 				return
 			}
 		}
@@ -366,18 +398,7 @@ func main() {
 			delay := time.Duration(3+mathrand.Intn(8)) * time.Second
 			go func() {
 				time.Sleep(delay)
-				loginSent = true
-				loginAck = make(chan struct{}, 1)
-				ack := loginAck
-				logger.Printf("Sending !login to %s after bot rejoin", *botNick)
-				c.Privmsg(*botNick, "!login "+*gamePass)
-				go func() {
-					select {
-					case <-ack:
-					case <-time.After(10 * time.Second):
-						logger.Printf("WARNING: no !login reply from %s after 10s", *botNick)
-					}
-				}()
+				sendLogin(c, "bot rejoin")
 			}()
 		}
 	})
@@ -411,7 +432,13 @@ func main() {
 			if strings.Contains(text, "[online]") {
 				logger.Printf("Online status confirmed: %s", text)
 			} else {
-				logger.Printf("WARNING: not online after login: %s", text)
+				logger.Printf("WARNING: not online after login — retrying")
+				go func() {
+					delay := time.Duration(5+mathrand.Intn(10)) * time.Second
+					time.Sleep(delay)
+					loginSent = false
+					sendLogin(c, "not online after whoami")
+				}()
 			}
 		}
 
@@ -424,12 +451,7 @@ func main() {
 
 			if isPrivAck || isChanAck {
 				logger.Printf("Login confirmed: %s", text)
-				go func() {
-					time.Sleep(5 * time.Second)
-					whoamiPending = true
-					logger.Println("Sending !whoami to verify online status")
-					c.Privmsg(*botNick, "!whoami")
-				}()
+				verifyOnline(c)
 				select {
 				case loginAck <- struct{}{}:
 				default:
