@@ -38,6 +38,7 @@ func main() {
 	ssl        := flag.Bool("ssl",            false, "Use SSL")
 	serverPass := flag.String("server-pass",  "",  "IRC server password")
 	nickservPass := flag.String("nickserv-pass", "", "NickServ IDENTIFY password")
+	botNick    := flag.String("bot",          "VoidKeeper", "Bot nick to send !login to")
 	logFile    := flag.String("log",          "",  "Log file path (appended; empty = stdout only)")
 	flag.Parse()
 
@@ -84,8 +85,8 @@ func main() {
 		joiningNick := line.Nick
 		target := line.Args[0]
 		if strings.EqualFold(joiningNick, *nick) && strings.EqualFold(target, *channel) {
-			logger.Printf("Joined %s, sending !login", *channel)
-			c.Privmsg(*channel, "!login "+*gamePass)
+			logger.Printf("Joined %s, sending !login to %s", *channel, *botNick)
+			c.Privmsg(*botNick, "!login "+*gamePass)
 		}
 	})
 
