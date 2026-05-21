@@ -219,7 +219,7 @@ Focus slot derived via FNV-1a hash of the lowercase class name mod 10.
 | Neutral | normal | none | none |
 
 ### Item Slots
-`implant`, `beacon`, `module`, `weapon`, `visor`, `suit`, `gauntlets`, `plating`, `deflector`, `boots`
+`implant`, `beacon`, `module`, `weapon`, `visor`, `suit`, `gauntlets`, `hull plating`, `deflector`, `boots`
 
 ### Item Rarities (level-up drops only)
 | Rarity | Unlock | Chance | Level range | Topic marker |

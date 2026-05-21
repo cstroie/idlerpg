@@ -65,7 +65,7 @@ var slotNouns = map[string][]string{
 	"visor":     {"Cortex", "HUD", "Lens", "Shroud", "Caul"},
 	"suit":      {"Carapace", "Weave", "Mantle", "Liner", "Shell"},
 	"gauntlets": {"Grips", "Claws", "Bracers", "Fists", "Gauntlets"},
-	"plating":   {"Greaves", "Plates", "Guards", "Panels", "Layering"},
+	"hull plating": {"Greaves", "Plates", "Guards", "Panels", "Layering"},
 	"deflector": {"Barrier", "Ward", "Bulwark", "Aegis", "Field"},
 	"boots":     {"Treads", "Walkers", "Steps", "Striders", "Soles"},
 }

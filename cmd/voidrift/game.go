@@ -101,7 +101,7 @@ const maxPassLen = 256 // bytes; prevents DoS via giant SHA-256 preimage
 // used everywhere items are stored (Player.Items, Player.ItemNames).
 var itemSlots = [10]string{
 	"implant", "beacon", "module", "weapon", "visor",
-	"suit", "gauntlets", "plating", "deflector", "boots",
+	"suit", "gauntlets", "hull plating", "deflector", "boots",
 }
 
 // IRC text-formatting constants for player-visible messages.
