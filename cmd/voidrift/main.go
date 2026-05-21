@@ -6,9 +6,11 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -69,6 +71,10 @@ func main() {
 	cfg := irc.NewConfig(*nick, "voidrift", "Void Drift bot")
 	cfg.SSL = *ssl
 	cfg.Server = *server
+	if *ssl {
+		host, _, _ := net.SplitHostPort(*server)
+		cfg.SSLConfig = &tls.Config{ServerName: host}
+	}
 	cfg.Pass = *password
 	// Append "_" when the preferred nick is already taken rather than failing.
 	cfg.NewNick = func(n string) string { return n + "_" }

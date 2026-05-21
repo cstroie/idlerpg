@@ -9,7 +9,9 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"crypto/tls"
 	mathrand "math/rand"
+	"net"
 	"os"
 	"os/signal"
 	"regexp"
@@ -235,6 +237,10 @@ func main() {
 	cfg := irc.NewConfig(*nick, "drifter", "Void Drift idle client "+version)
 	cfg.SSL = *ssl
 	cfg.Server = *server
+	if *ssl {
+		host, _, _ := net.SplitHostPort(*server)
+		cfg.SSLConfig = &tls.Config{ServerName: host}
+	}
 	cfg.Pass = *serverPass
 	cfg.NewNick = func(n string) string { return n + "_" }
 	conn := irc.Client(cfg)
