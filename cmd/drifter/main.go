@@ -92,10 +92,6 @@ func main() {
 	// Sending on it cancels the timeout goroutine.
 	var loginAck chan struct{}
 
-	// charName is the character name parsed from the login confirmation,
-	// used to verify presence in !online output.
-	var charName string
-
 	conn.HandleFunc("connected", func(c *irc.Conn, line *irc.Line) {
 		logger.Println("Connected, joining", *channel)
 		if *nickservPass != "" {
@@ -206,14 +202,13 @@ func main() {
 		text := stripIRC(line.Args[1])
 		logger.Printf("[%s] <%s> %s", target, line.Nick, text)
 
-		// Watch for !online reply to verify we appear in the online list.
-		if charName != "" && strings.EqualFold(line.Nick, *botNick) &&
-			!strings.HasPrefix(target, "#") && strings.HasPrefix(text, "Online (") {
-			if strings.Contains(text, charName) {
-				logger.Printf("Online check OK: %s is listed", charName)
-			} else {
-				logger.Printf("WARNING: %s not found in online list: %s", charName, text)
-			}
+		// Watch for !whoami reply to verify we are online.
+		if strings.EqualFold(line.Nick, *botNick) && !strings.HasPrefix(target, "#") &&
+			strings.Contains(text, "[online]") {
+			logger.Printf("Online status confirmed: %s", text)
+		} else if strings.EqualFold(line.Nick, *botNick) && !strings.HasPrefix(target, "#") &&
+			strings.Contains(text, "[offline]") {
+			logger.Printf("WARNING: status is offline after login: %s", text)
 		}
 
 		// Watch for the bot's login acknowledgement — either the private reply
@@ -226,20 +221,12 @@ func main() {
 
 			if isPrivAck || isChanAck {
 				logger.Printf("Login confirmed: %s", text)
-				// Parse character name from "Name, the level N ..." to use with !online.
-				if comma := strings.Index(text, ","); comma > 0 {
-					charName = strings.TrimLeft(text[:comma], " \x02\x03")
-					// strip any remaining IRC formatting
-					charName = stripIRC(charName)
-				}
-				// Verify we are online by DMing !online to the bot.
-				if charName != "" {
-					go func(name string) {
-						time.Sleep(2 * time.Second)
-						logger.Printf("Sending !online to verify presence of %s", name)
-						c.Privmsg(*botNick, "!online")
-					}(charName)
-				}
+				// Verify we are online by DMing !whoami to the bot.
+				go func() {
+					time.Sleep(2 * time.Second)
+					logger.Println("Sending !whoami to verify online status")
+					c.Privmsg(*botNick, "!whoami")
+				}()
 				select {
 				case loginAck <- struct{}{}:
 				default:
