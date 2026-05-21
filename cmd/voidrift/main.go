@@ -196,7 +196,7 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 		joinedChannel := line.Args[0]
 		joiningNick := extractNick(line.Src)
 		if joiningNick == botNick && !strings.EqualFold(joinedChannel, channel) {
-			c.Part(joinedChannel, "I only idle in "+channel)
+			c.Part(joinedChannel, "I only drift in "+channel)
 			return
 		}
 		if !strings.EqualFold(joinedChannel, channel) {

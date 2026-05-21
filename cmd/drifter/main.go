@@ -374,7 +374,7 @@ func main() {
 		}
 		target := line.Args[0]
 		if !strings.EqualFold(target, *channel) {
-			c.Part(target, "I only idle in "+*channel)
+			c.Part(target, "I only drift in "+*channel)
 			return
 		}
 		logger.Printf("Joined %s, checking for bot %s", *channel, *botNick)
