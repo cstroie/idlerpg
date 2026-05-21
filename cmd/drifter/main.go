@@ -202,18 +202,29 @@ func main() {
 		text := stripIRC(line.Args[1])
 		logger.Printf("[%s] <%s> %s", target, line.Nick, text)
 
-		// Watch for the bot's private !login reply.
-		if loginAck != nil && strings.EqualFold(line.Nick, *botNick) && !strings.HasPrefix(target, "#") {
-			if strings.Contains(text, "logged in.") {
+		// Watch for the bot's login acknowledgement — either the private reply
+		// ("logged in.") or the channel announcement ("enters the void").
+		if loginAck != nil && strings.EqualFold(line.Nick, *botNick) {
+			isDM      := !strings.HasPrefix(target, "#")
+			isPrivAck := isDM && strings.Contains(text, "logged in.")
+			isPrivErr := isDM && !strings.Contains(text, "logged in.")
+			isChanAck := !isDM && strings.Contains(text, "enters the void")
+
+			if isPrivAck || isChanAck {
 				logger.Printf("Login confirmed: %s", text)
-			} else {
+				select {
+				case loginAck <- struct{}{}:
+				default:
+				}
+				loginAck = nil
+			} else if isPrivErr {
 				logger.Printf("WARNING: login failed: %s", text)
+				select {
+				case loginAck <- struct{}{}:
+				default:
+				}
+				loginAck = nil
 			}
-			select {
-			case loginAck <- struct{}{}:
-			default:
-			}
-			loginAck = nil
 		}
 	})
 
