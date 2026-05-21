@@ -88,12 +88,20 @@ func main() {
 	// namesInChannel collects nicks from the NAMES reply for our channel.
 	var namesInChannel []string
 
+	// loginSent prevents sending !login more than once per session.
+	var loginSent bool
+
 	// loginAck is non-nil while we are waiting for the bot's !login reply.
 	// Sending on it cancels the timeout goroutine.
 	var loginAck chan struct{}
 
+	// whoamiPending is true while we are waiting for the !whoami reply.
+	var whoamiPending bool
+
 	conn.HandleFunc("connected", func(c *irc.Conn, line *irc.Line) {
 		logger.Println("Connected, joining", *channel)
+		loginSent = false
+		whoamiPending = false
 		if *nickservPass != "" {
 			c.Privmsg("NickServ", "IDENTIFY "+*nickservPass)
 		}
@@ -133,8 +141,12 @@ func main() {
 		if len(line.Args) < 2 || !strings.EqualFold(line.Args[1], *channel) {
 			return
 		}
+		if loginSent {
+			return
+		}
 		for _, n := range namesInChannel {
 			if strings.EqualFold(n, *botNick) {
+				loginSent = true
 				logger.Printf("Bot %s is in %s, sending !login", *botNick, *channel)
 				loginAck = make(chan struct{}, 1)
 				ack := loginAck
@@ -203,8 +215,9 @@ func main() {
 		logger.Printf("[%s] <%s> %s", target, line.Nick, text)
 
 		// Watch for !whoami reply to verify we are online.
-		if strings.EqualFold(line.Nick, *botNick) && !strings.HasPrefix(target, "#") &&
+		if whoamiPending && strings.EqualFold(line.Nick, *botNick) && !strings.HasPrefix(target, "#") &&
 			strings.Contains(text, "phase:") {
+			whoamiPending = false
 			if strings.Contains(text, "[online]") {
 				logger.Printf("Online status confirmed: %s", text)
 			} else {
@@ -223,6 +236,7 @@ func main() {
 			if isPrivAck || isChanAck {
 				logger.Printf("Login confirmed: %s", text)
 				// Verify we are online by DMing !whoami to the bot.
+				whoamiPending = true
 				go func() {
 					time.Sleep(2 * time.Second)
 					logger.Println("Sending !whoami to verify online status")
