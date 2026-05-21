@@ -23,6 +23,7 @@
       that slot counts double in all battle rolls.
 - [ ] **Manpages** - Add manpages for the two binaries. Update also the Makefile to 
       install them.
+- [ ] **Version** - Add version number in 'drifter'. too.
 
 ## Low Priority / Nice to Have
 

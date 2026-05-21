@@ -1515,7 +1515,7 @@ func (g *Game) CmdReclass(src, newClass string) string {
 	g.mu.Unlock()
 	g.save()
 	return fmt.Sprintf(iB+cCyan+"%s"+iC+iB+" abandons "+iB+"%s"+iB+" and becomes a "+iB+"%s"+iB+". Focus shifts to "+iB+"%s"+iB+". Next phase: "+iB+"%s"+iB+".",
-		name, oldClass, newClass, itemSlots[slot], fmtDuration(ttl))
+		name, oldClass, newClass, itemLabel(p, slot), fmtDuration(ttl))
 }
 
 // CmdStatus returns a one-line status summary for the target player. If
@@ -2835,14 +2835,15 @@ func (g *Game) voidStorm(online []*Player) []string {
 				ipct := mathrand.Intn(6) + 5 // 5–10%
 				old := p.Items[slot]
 				degraded := old * (100 - ipct) / 100
+				label := itemLabel(p, slot)
 				if degraded <= 2 {
 					p.Items[slot] = 0
 					p.ItemNames[slot] = ""
-					msgs = append(msgs, genderize(fmt.Sprintf(itemDestroyedMsgs[mathrand.Intn(len(itemDestroyedMsgs))], p.Name, itemSlots[slot]), p))
+					msgs = append(msgs, genderize(fmt.Sprintf(itemDestroyedMsgs[mathrand.Intn(len(itemDestroyedMsgs))], p.Name, label), p))
 				} else {
 					p.Items[slot] = degraded
 					msgs = append(msgs, fmt.Sprintf(iB+cCyan+"%s"+iC+iB+"'s "+iI+"%s"+iI+" is damaged by the surge (%d%% degraded).",
-						p.Name, itemSlots[slot], ipct))
+						p.Name, label, ipct))
 				}
 			}
 		}
