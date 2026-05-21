@@ -26,6 +26,8 @@ verifies the game bot is present in the channel before sending
 \fB!login\fR, and confirms the login succeeded by watching for the
 bot\[aq]s channel announcement and by sending \fB!whoami\fR shortly
 after.
+Every 30\[en]90 minutes it sends another \fB!whoami\fR to detect
+silent logouts and re-authenticates automatically if needed.
 If the bot restarts and rejoins the channel,
 .B drifter
 automatically re-authenticates after a short random delay.
@@ -36,31 +38,18 @@ sends \fB!logout\fR to the bot before disconnecting, avoiding the quit
 penalty.
 On unclean disconnects (network drop) it reconnects automatically after
 10 seconds.
+.B drifter
+parts any channel it is invited to other than the game channel.
 .SH OPTIONS
-.TP
-.BI \-nick " nick"
-IRC nick to use.
-.B Required.
-.TP
-.BI \-game\-pass " password"
-Game password sent to the bot via private message as \fB!login\fR.
-.B Required.
-.TP
-.BI \-bot " nick"
-Nick of the game bot to send \fB!login\fR and \fB!logout\fR to.
-Default: \fBVoidKeeper\fR.
-.TP
-.BI \-channel " channel"
-IRC channel to join.
-Default: \fB#voidrift\fR.
+.SS Connection
 .TP
 .BI \-server " host:port"
 IRC server to connect to.
 Default: \fBirc.libera.chat:6667\fR.
 .TP
-.B \-ssl
-Use SSL/TLS for the IRC connection.
-Default: false.
+.BI \-nick " nick"
+IRC nick to use.
+.B Required.
 .TP
 .BI \-server\-pass " password"
 IRC server password (PASS command).
@@ -70,10 +59,28 @@ Default: none.
 NickServ password; sends \fBIDENTIFY\fR on connect.
 Default: none.
 .TP
+.B \-ssl
+Use SSL/TLS for the IRC connection.
+Default: false.
+.TP
 .B \-no\-verify
 Skip TLS certificate verification.
 Only meaningful with \fB\-ssl\fR.
 Use with caution: disables man-in-the-middle protection.
+.SS Game
+.TP
+.BI \-channel " channel"
+IRC channel to join.
+Default: \fB#voidrift\fR.
+.TP
+.BI \-bot " nick"
+Nick of the game bot to send \fB!login\fR and \fB!logout\fR to.
+Default: \fBVoidKeeper\fR.
+.TP
+.BI \-game\-pass " password"
+Game password sent to the bot via private message as \fB!login\fR.
+.B Required.
+.SS Extra
 .TP
 .BI \-log " file"
 Append plain-text (IRC codes stripped) messages to this file.
@@ -107,6 +114,10 @@ The bot rejected the login (wrong password, nick not registered, etc.).
 .B "WARNING: bot <nick> left/quit <channel>"
 The game bot left the channel or disconnected.
 \fBdrifter\fR will re-authenticate automatically when the bot returns.
+.TP
+.B "WARNING: no periodic !whoami reply"
+The periodic online check received no reply within 15 seconds.
+\fBdrifter\fR will re-authenticate automatically.
 .SH EXAMPLES
 Basic usage:
 .PP

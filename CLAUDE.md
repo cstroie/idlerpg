@@ -7,6 +7,14 @@ Players gain levels by idling in the channel. Activity (talking, nick changes,
 parting, quitting, getting kicked) adds penalty time. See README.md for player
 commands and game mechanics.
 
+## Documentation Checklist
+
+When adding, removing, or renaming flags or behaviours, update **all** of:
+- `README.md` — flags tables for both binaries (and env-var column for voidrift)
+- `CLAUDE.md` — flags tables for both binaries (this file)
+- `man/man1/voidrift.1` and `man/man1/drifter.1` — OPTIONS and ENVIRONMENT sections
+- `init/voidrift.env.example` — env var names/comments
+
 ## Build & Run
 
 ```bash

@@ -19,6 +19,7 @@ Player data is persisted automatically to a JSON file after every
 state change.
 Guild data is stored in a separate file.
 .SH OPTIONS
+.SS Connection
 .TP
 .BI \-server " host:port"
 IRC server to connect to.
@@ -28,17 +29,28 @@ Default: \fBirc.libera.chat:6667\fR.
 Bot IRC nick.
 Default: \fBVoidKeeper\fR.
 .TP
-.BI \-password " password"
+.BI \-server\-pass " password"
 IRC server password (PASS command).
+Default: none.
+.TP
+.BI \-nickserv\-pass " password"
+NickServ password; sends \fBIDENTIFY\fR on connect.
 Default: none.
 .TP
 .B \-ssl
 Use SSL/TLS for the IRC connection.
 Default: false.
 .TP
+.B \-no\-verify
+Skip TLS certificate verification.
+Only meaningful with \fB\-ssl\fR.
+Use with caution: disables man-in-the-middle protection.
+.SS Game
+.TP
 .BI \-channel " channel"
 IRC channel to join and run the game in.
 Default: \fB#voidrift\fR.
+The bot parts any other channel it is invited to.
 .TP
 .BI \-data " file"
 Path to the player data JSON file (created automatically if absent).
@@ -47,15 +59,7 @@ Default: \fBvoidrift.json\fR.
 .BI \-guilds " file"
 Path to the guild data JSON file (created automatically if absent).
 Default: \fBguilds.json\fR.
-.TP
-.BI \-nickserv " password"
-NickServ password; sends \fBIDENTIFY\fR on connect.
-Default: none.
-.TP
-.BI \-chanserv " nick"
-ChanServ nick to request ops from on channel join.
-Set to empty string to disable.
-Default: \fBChanServ\fR.
+.SS Tuning
 .TP
 .B \-dev
 Developer mode: TTL \[di]14, event rates \[mu]10, creep levels capped
@@ -75,6 +79,15 @@ Default: \fB1.0\fR.
 Server event rate multiplier; scales team/guild battles, quests, and
 Hand of God events.
 Default: \fB1.0\fR.
+.SS Extra
+.TP
+.BI \-log " file"
+Append log output to this file.
+Standard output is always active regardless of this flag.
+Default: none.
+.TP
+.B \-version
+Print version and exit.
 .SH ENVIRONMENT
 All flags can also be set via environment variables.
 The priority order is: flag > environment variable > compiled-in default.
@@ -82,17 +95,18 @@ The priority order is: flag > environment variable > compiled-in default.
 l l.
 \fBVOIDRIFT_SERVER\fR	IRC server host:port
 \fBVOIDRIFT_NICK\fR	Bot nick
-\fBVOIDRIFT_PASSWORD\fR	Server password
+\fBVOIDRIFT_SERVER_PASS\fR	IRC server password
+\fBVOIDRIFT_NICKSERV_PASS\fR	NickServ password
 \fBVOIDRIFT_SSL\fR	Use SSL (true/false)
+\fBVOIDRIFT_NO_VERIFY\fR	Skip TLS verification (true/false)
 \fBVOIDRIFT_CHANNEL\fR	Game channel
 \fBVOIDRIFT_DATA\fR	Player data file
 \fBVOIDRIFT_GUILDS\fR	Guild data file
-\fBVOIDRIFT_NICKSERV\fR	NickServ password
-\fBVOIDRIFT_CHANSERV\fR	ChanServ nick
-\fBVOIDRIFT_DEV\fR	Dev mode
+\fBVOIDRIFT_DEV\fR	Dev mode (true/false)
 \fBVOIDRIFT_RATE_PLAYER\fR	Per-player event multiplier
 \fBVOIDRIFT_RATE_ALIGN\fR	Alignment event multiplier
 \fBVOIDRIFT_RATE_SERVER\fR	Server event multiplier
+\fBVOIDRIFT_LOG\fR	Log file path
 .TE
 .PP
 For service deployments, variables can be placed in
@@ -124,6 +138,14 @@ Run in developer mode with faster events:
 .RS
 .EX
 voidrift \-dev \-rate\-player 100 \-rate\-server 100
+.EE
+.RE
+.PP
+Run with SSL and log to file:
+.PP
+.RS
+.EX
+voidrift \-ssl \-nickserv\-pass s3cr3t \-log /var/log/voidrift/voidrift.log
 .EE
 .RE
 .SH SEE ALSO
