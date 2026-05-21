@@ -21,6 +21,9 @@ import (
 	irc "github.com/fluffle/goirc/client"
 )
 
+// version is set at build time via -ldflags "-X main.version=YYMMDD".
+var version = "dev"
+
 // IRC colour index → ANSI foreground escape (approximate).
 var ircToANSI = [16]string{
 	"37",  // 0  white
@@ -184,7 +187,13 @@ func main() {
 	nickservPass := flag.String("nickserv-pass",  "",          "NickServ IDENTIFY password")
 	botNick      := flag.String("bot",           "VoidKeeper", "Bot nick to send !login to")
 	logFile      := flag.String("log",           "",           "Log file path (appended; empty = stdout only)")
+	showVersion  := flag.Bool("version",         false,        "Print version and exit")
 	flag.Parse()
+
+	if *showVersion {
+		fmt.Println("drifter", version)
+		os.Exit(0)
+	}
 
 	if *nick == "" {
 		fmt.Fprintln(os.Stderr, "drifter: -nick is required")
@@ -222,7 +231,8 @@ func main() {
 		}
 	}
 
-	cfg := irc.NewConfig(*nick, "drifter", "Void Drift idle client")
+	log.Printf("drifter starting (version %s)", version)
+	cfg := irc.NewConfig(*nick, "drifter", "Void Drift idle client "+version)
 	cfg.SSL = *ssl
 	cfg.Server = *server
 	cfg.Pass = *serverPass

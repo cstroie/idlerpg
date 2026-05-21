@@ -17,7 +17,7 @@ all: build
 
 build:
 	go build $(LDFLAGS) -o $(VOIDRIFT) ./cmd/voidrift
-	go build -o $(DRIFTER) ./cmd/drifter
+	go build $(LDFLAGS) -o $(DRIFTER) ./cmd/drifter
 
 test:
 	go test ./...
