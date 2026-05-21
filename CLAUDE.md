@@ -27,6 +27,7 @@ All flags:
 | `-guilds` | `guilds.json` | Guild data file |
 | `-dev` | `false` | Dev mode: TTL ÷14, event rates ×10, weak creeps, easy quests, auto-login channel members |
 | `-nickserv` | _(none)_ | NickServ password; sends `IDENTIFY` on connect |
+| `-chanserv` | `ChanServ` | ChanServ nick to request ops from on channel join (set empty to disable) |
 | `-rate-player` | `1.0` | Per-player event multiplier (random events, bot battles) |
 | `-rate-align` | `1.0` | Alignment event multiplier (good/evil daily events) |
 | `-rate-server` | `1.0` | Server event multiplier (team battles, guild battles, quests, Hand of God) |
