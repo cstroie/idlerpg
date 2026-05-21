@@ -141,6 +141,9 @@ go build ./cmd/drifter
 | `-log` | _(none)_ | Append messages to this file (stdout always active) |
 
 `drifter` reconnects automatically after a 10-second delay on disconnect.
+On a clean shutdown (Ctrl-C, `kill`, service stop) it sends `!logout` first to avoid the quit penalty.
+
+Channel messages are printed to stdout with **ANSI colours** matching the IRC formatting. If a log file is specified via `-log`, it receives plain stripped text instead.
 
 ## Contributing
 
