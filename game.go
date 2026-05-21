@@ -2770,7 +2770,11 @@ func (g *Game) randomEvent(p *Player) string {
 		found := mathrand.Intn(maxItem) + 1
 		slotName := itemSlots[slot]
 		itemName := generateItemName(rarityNormal, slotName)
-		equipped := "but it's worse than their current one"
+		currentName := p.ItemNames[slot]
+		if currentName == "" {
+			currentName = p.their() + " " + slotName
+		}
+		equipped := "but it's worse than " + currentName
 		if found > p.Items[slot] {
 			p.Items[slot] = found
 			p.ItemNames[slot] = itemName
