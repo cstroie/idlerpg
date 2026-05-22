@@ -471,6 +471,11 @@ func main() {
 		raw := line.Args[1]
 		logMsg("[%s] <%s> ", raw, target, line.Nick)
 
+		if raw == "\x01VERSION\x01" {
+			c.Notice(line.Nick, "\x01VERSION Void Drifter "+version+" (https://github.com/cstroie/voidrift)\x01")
+			return
+		}
+
 		text := stripIRC(raw)
 
 		// Watch for !whoami reply to verify we are online.

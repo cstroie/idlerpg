@@ -265,6 +265,10 @@ func registerHandlers(conn *irc.Conn, game *Game, say func(string), connected ch
 			return
 		}
 		src, ch, text := line.Src, line.Args[0], strings.TrimSpace(line.Args[1])
+		if text == "\x01VERSION\x01" {
+			c.Notice(extractNick(src), "\x01VERSION Void Drift "+version+" (https://github.com/cstroie/voidrift)\x01")
+			return
+		}
 		fields := strings.Fields(text)
 		if len(fields) == 0 {
 			return
