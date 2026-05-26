@@ -12,7 +12,9 @@ MANDIR   ?= $(PREFIX)/share/man
 DATADIR  := /var/lib/voidrift
 ENVDIR   := /etc/voidrift
 
-.PHONY: all build test clean run dev install uninstall
+PLATFORMS := linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64
+
+.PHONY: all build dist $(PLATFORMS) test clean run dev install uninstall
 
 all: build
 
@@ -20,11 +22,39 @@ build:
 	go build $(LDFLAGS) -o $(VOIDRIFT) ./cmd/voidrift
 	go build $(LDFLAGS) -o $(DRIFTER) ./cmd/drifter
 
+# Build for all platforms: make dist
+dist: $(PLATFORMS)
+
+linux/amd64:
+	CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build $(LDFLAGS) -o $(VOIDRIFT)-linux-amd64   ./cmd/voidrift
+	CGO_ENABLED=0 GOOS=linux   GOARCH=amd64 go build $(LDFLAGS) -o $(DRIFTER)-linux-amd64    ./cmd/drifter
+
+linux/arm64:
+	CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build $(LDFLAGS) -o $(VOIDRIFT)-linux-arm64   ./cmd/voidrift
+	CGO_ENABLED=0 GOOS=linux   GOARCH=arm64 go build $(LDFLAGS) -o $(DRIFTER)-linux-arm64    ./cmd/drifter
+
+darwin/amd64:
+	GOOS=darwin  GOARCH=amd64 go build $(LDFLAGS) -o $(VOIDRIFT)-darwin-amd64  ./cmd/voidrift
+	GOOS=darwin  GOARCH=amd64 go build $(LDFLAGS) -o $(DRIFTER)-darwin-amd64   ./cmd/drifter
+
+darwin/arm64:
+	GOOS=darwin  GOARCH=arm64 go build $(LDFLAGS) -o $(VOIDRIFT)-darwin-arm64  ./cmd/voidrift
+	GOOS=darwin  GOARCH=arm64 go build $(LDFLAGS) -o $(DRIFTER)-darwin-arm64   ./cmd/drifter
+
+windows/amd64:
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(VOIDRIFT)-windows-amd64.exe ./cmd/voidrift
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o $(DRIFTER)-windows-amd64.exe  ./cmd/drifter
+
 test:
 	go test ./...
 
 clean:
-	rm -f $(VOIDRIFT) $(DRIFTER)
+	rm -f $(VOIDRIFT) $(DRIFTER) \
+		$(VOIDRIFT)-linux-amd64   $(DRIFTER)-linux-amd64 \
+		$(VOIDRIFT)-linux-arm64   $(DRIFTER)-linux-arm64 \
+		$(VOIDRIFT)-darwin-amd64  $(DRIFTER)-darwin-amd64 \
+		$(VOIDRIFT)-darwin-arm64  $(DRIFTER)-darwin-arm64 \
+		$(VOIDRIFT)-windows-amd64.exe $(DRIFTER)-windows-amd64.exe
 
 man: man/man1/voidrift.1 man/man1/drifter.1
 
