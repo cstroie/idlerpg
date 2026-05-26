@@ -14,7 +14,19 @@ See [MANUAL.md](MANUAL.md) for full player documentation: commands, mechanics, a
 
 ## Quickstart
 
-**Prerequisites**: Go 1.21 or later.
+**Download a release** from the [releases page](https://github.com/cstroie/voidrift/releases):
+
+```bash
+# Linux (amd64) — statically linked, runs on any distro including Alpine/musl
+curl -L https://github.com/cstroie/voidrift/releases/latest/download/voidrift-linux-amd64 -o voidrift
+curl -L https://github.com/cstroie/voidrift/releases/latest/download/drifter-linux-amd64 -o drifter
+chmod +x voidrift drifter
+./voidrift -server irc.libera.chat:6667 -nick VoidKeeper -channel "#voidrift"
+```
+
+Replace `linux-amd64` with `linux-arm64`, `darwin-amd64`, `darwin-arm64`, or `windows-amd64.exe` as needed.
+
+**Build from source** — requires Go 1.21 or later:
 
 ```bash
 git clone https://github.com/cstroie/voidrift.git
@@ -34,11 +46,13 @@ make dev
 ## Building & Testing
 
 ```bash
-make build   # compile; binary stamped with today's date (yymmdd)
-make test    # run unit tests
-make run     # build and run with default flags
-make dev     # build and run in dev mode
-make clean   # remove the binary
+make build        # compile voidrift + drifter; version stamped with today's date (yymmdd)
+make dist         # cross-compile for all platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64)
+make linux/amd64  # build a single platform
+make test         # run unit tests
+make run          # build and run with default flags
+make dev          # build and run in dev mode
+make clean        # remove all generated binaries
 ```
 
 You can override connection defaults without editing the Makefile:

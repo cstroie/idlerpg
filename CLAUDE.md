@@ -15,6 +15,12 @@ When adding, removing, or renaming flags or behaviours, update **all** of:
 - `man/man1/voidrift.1` and `man/man1/drifter.1` — OPTIONS and ENVIRONMENT sections
 - `init/voidrift.env.example` — env var names/comments
 
+## Releases & cross-platform builds
+
+`make dist` builds both binaries for all five platforms. Linux targets use `CGO_ENABLED=0` for static linking (works on Alpine/musl and old glibc). Tag format: `vYYMMDD` (e.g. `v260526`). GitHub Actions (`.github/workflows/release.yml`) runs `make dist` and uploads all 10 binaries to the GitHub release on each tag push.
+
+Binary names: `voidrift-<os>-<arch>[.exe]` and `drifter-<os>-<arch>[.exe]`.
+
 ## Build & Run
 
 ```bash
